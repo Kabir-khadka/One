@@ -20,10 +20,10 @@ public class AnimandMovement : MonoBehaviour
     [SerializeField] private float rotationFactorPerFrame = 9f;
 
     [Header("Jump Settings")]
-    [SerializeField] private float maxJumpHeight = 3.0f;
-    [SerializeField] private float maxJumpTime = 0.75f;
+    [SerializeField] private float maxJumpHeight = 8.0f;
+    [SerializeField] private float maxJumpTime = 1f;
     [SerializeField] private float coyoteTime = 1f;
-    [SerializeField] private float jumpBufferTime = 0.1f;
+    [SerializeField] private float jumpBufferTime = 0.8f;
     [SerializeField] private float fallMultiplier = 4.0f;
     [SerializeField] private LayerMask groundLayer;
 
@@ -42,6 +42,7 @@ public class AnimandMovement : MonoBehaviour
     private float jumpBufferCounter;
 
     // Jump state variables
+    private bool wasJumpPressed = false; // Track previous frame state
     private bool isJumping = false;
     private bool isJumpAnimating = false;
     private int jumpCount = 0;
@@ -155,7 +156,7 @@ public class AnimandMovement : MonoBehaviour
             jumpBufferCounter -= Time.deltaTime;
         }
 
-        // Handle jump execution
+        // Process jump
         if (jumpBufferCounter > 0f && coyoteTimeCounter > 0f && !isJumping)
         {
             if (currentJumpResetRoutine != null)
@@ -164,7 +165,7 @@ public class AnimandMovement : MonoBehaviour
                 currentJumpResetRoutine = null;
             }
 
-            // Set jump states and animate
+            // Set jump states
             animator.SetBool(isJumpingHash, true);
             isJumpAnimating = true;
             isJumping = true;
@@ -174,17 +175,20 @@ public class AnimandMovement : MonoBehaviour
             animator.SetInteger(jumpCountHash, jumpCount);
 
             // Apply jump force
-            rb.linearVelocity = new Vector3(rb.linearVelocity.x, initialJumpVelocities[jumpCount], rb.linearVelocity.z);
+            rb.linearVelocity = new Vector3(rb.linearVelocity.x, initialJumpVelocities[jumpCount], rb.linearVelocity.z);  // Using velocity, not linearVelocity
 
-            // Reset jump buffer
+            // Reset jump buffer & coyote time
             jumpBufferCounter = 0f;
             coyoteTimeCounter = 0f;
+
+            // Reset jump input
+            isJumpPressed = false;
         }
 
-        // Handle jump release (variable jump height)
-        if (!isJumpPressed && rb.linearVelocity.y > 0)
+        // **Adjust variable jump height to be more natural**
+        if (!isJumpPressed && rb.linearVelocity.y > 0)  // Using velocity here as well
         {
-            rb.linearVelocity = new Vector3(rb.linearVelocity.x, rb.linearVelocity.y * 0.5f, rb.linearVelocity.z);
+            rb.linearVelocity = new Vector3(rb.linearVelocity.x, rb.linearVelocity.y * 1f, rb.linearVelocity.z); // Less aggressive dampening
         }
 
         // Handle landing
@@ -202,6 +206,9 @@ public class AnimandMovement : MonoBehaviour
             }
         }
     }
+
+
+
 
     private bool IsGrounded()
     {
@@ -249,7 +256,10 @@ public class AnimandMovement : MonoBehaviour
 
     private void onJump(InputAction.CallbackContext context)
     {
-        isJumpPressed = context.ReadValueAsButton();
+        if (context.started) // Trigger only when the key is first pressed
+        {
+            isJumpPressed = true;
+        }
     }
 
     // Also update the cleanup in OnDisable to prevent memory leaks
@@ -411,7 +421,7 @@ public class AnimandMovement : MonoBehaviour
         playerInput.actions.Enable();
     }
 
- 
+
 
 #if UNITY_EDITOR
     private void OnDrawGizmos()
