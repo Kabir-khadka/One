@@ -3,81 +3,128 @@ using System.Collections;
 
 public class CollapsingPlatform : ObstacleBase
 {
-    [SerializeField] private float collapseDelay = 2f; // Time before falling
+    [SerializeField] private float collapseDelay = 4f; // Time before collapse
     [SerializeField] private float respawnDelay = 5f; // Time before reset
+    [SerializeField] private Material crackedMaterial; // Optional cracked material
 
-    private Material platformMaterial; // Unique material for this platform
+    private Material platformMaterial;
     private Vector3 originalPosition;
     private Quaternion originalRotation;
     private bool isCollapsing = false;
-    private float crackStrength = 0f; // Starts with no cracks
+    private float crackStrength = 0f;
+    private Renderer mainRenderer;
+    private Collider mainCollider;
 
     private void Start()
     {
         originalPosition = transform.position;
         originalRotation = transform.rotation;
 
-        // Get the unique material instance from the renderer
-        platformMaterial = GetComponent<Renderer>().material;
+        mainRenderer = GetComponent<Renderer>();
+        mainCollider = GetComponent<Collider>();
 
-        if (platformMaterial != null)
+        if (mainRenderer != null)
         {
-            platformMaterial.SetFloat("_CrackStrength", 0f); // Ensure cracks are invisible at start
-            Debug.Log("Initial Crack Strength: " + platformMaterial.GetFloat("_CrackStrength"));
+            platformMaterial = mainRenderer.material;
+            platformMaterial.SetFloat("_CrackStrength", 0f); // Start with no cracks
         }
     }
 
     private void OnCollisionEnter(Collision collision)
     {
+        // Only trigger if it's the player and we're not already collapsing
         if (collision.gameObject.CompareTag("Player") && !isCollapsing)
         {
-            StartCoroutine(CrackBeforeCollapse());
+            Debug.Log("Player collision detected, starting collapse sequence");
+            StartCoroutine(CrackingSequence());
         }
     }
 
-    private IEnumerator CrackBeforeCollapse()
+    private IEnumerator CrackingSequence()
     {
         isCollapsing = true;
-
         float elapsedTime = 0f;
-        float duration = collapseDelay; // Time for cracks to fully appear
 
-        while (elapsedTime < duration)
+        Debug.Log("Starting cracking animation for exactly 4 seconds");
+
+        // Gradual cracking animation - always runs for exactly 4 seconds
+        while (elapsedTime < collapseDelay)
         {
-            crackStrength = Mathf.Lerp(0f, 1f, elapsedTime / duration); // Animate cracks
-            platformMaterial.SetFloat("_CrackStrength", crackStrength); // Update Shader
+            // Calculate new crack strength
+            crackStrength = Mathf.Lerp(0f, 1f, elapsedTime / collapseDelay);
+
+            // Apply to material
+            if (platformMaterial != null)
+            {
+                platformMaterial.SetFloat("_CrackStrength", crackStrength);
+            }
+
+            // Add slight visual shake as it cracks more
+            if (elapsedTime > collapseDelay * 0.7f) // Only in last 30% of time
+            {
+                float shakeMagnitude = 0.005f * (crackStrength * 2f);
+                transform.position = originalPosition + Random.insideUnitSphere * shakeMagnitude;
+            }
+
             elapsedTime += Time.deltaTime;
             yield return null;
         }
 
-        platformMaterial.SetFloat("_CrackStrength", 1f); // Ensure full crack visibility
+        // Ensure full crack visibility
+        if (platformMaterial != null)
+        {
+            platformMaterial.SetFloat("_CrackStrength", 1f);
+        }
 
-        yield return new WaitForSeconds(0.2f);
+        Debug.Log("4 second crack animation completed, platform disabled");
 
-        StartCoroutine(CollapseAndRespawn());
-    }
+        // Disable platform
+        if (mainRenderer != null)
+        {
+            mainRenderer.enabled = false;
+        }
 
-    private IEnumerator CollapseAndRespawn()
-    {
-        yield return new WaitForSeconds(0.2f);
+        if (mainCollider != null)
+        {
+            mainCollider.enabled = false;
+        }
 
-        GetComponent<Collider>().enabled = false;
-        Rigidbody rb = GetComponent<Rigidbody>();
-        if (rb == null)
-            rb = gameObject.AddComponent<Rigidbody>();
-
-        rb.isKinematic = false; // Make it fall
-
+        // Wait for respawn
         yield return new WaitForSeconds(respawnDelay);
 
-        rb.isKinematic = true; // Reset physics
+        // Reset this platform
+        ResetPlatform();
+    }
+
+    public void ResetPlatform()
+    {
+        Debug.Log("Resetting platform");
+
+        // Reset crack material
+        if (mainRenderer != null && platformMaterial != null)
+        {
+            platformMaterial.SetFloat("_CrackStrength", 0f);
+        }
+
+        // Reset position
         transform.position = originalPosition;
         transform.rotation = originalRotation;
-        GetComponent<Collider>().enabled = true;
 
-        // Reset cracks when respawned
-        platformMaterial.SetFloat("_CrackStrength", 0f);
+        // Show main platform
+        if (mainRenderer != null)
+        {
+            mainRenderer.enabled = true;
+        }
 
+        // Enable main collider
+        if (mainCollider != null)
+        {
+            mainCollider.enabled = true;
+        }
+
+        // Reset collapse state
         isCollapsing = false;
+
+        Debug.Log("Platform has been reset");
     }
 }
