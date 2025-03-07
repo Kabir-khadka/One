@@ -1,8 +1,13 @@
 using System.Collections.Generic;
 using UnityEngine.InputSystem;
 using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.EventSystems;
 using System.Collections;
 using Unity.VisualScripting;
+using static FloatingJoystick;
+using static UnityEngine.AudioSettings;
+using UnityEngine.Rendering;
 
 public class AnimandMovement : MonoBehaviour
 {
@@ -26,6 +31,13 @@ public class AnimandMovement : MonoBehaviour
     [SerializeField] private float jumpBufferTime = 0.8f;
     [SerializeField] private float fallMultiplier = 4.0f;
     [SerializeField] private LayerMask groundLayer;
+
+    [Header("Mobile Controls")]
+    [SerializeField] private bool useMobileControls = false;
+    [SerializeField] private GameObject mobileControlsCanvas;
+    [SerializeField] private FloatingJoystick movementJoystick;  // Reference to your FloatingJoystick
+    [SerializeField] private Button jumpButton;
+   
 
     // Animator Hash IDs
     private int isWalkingHash;
@@ -71,7 +83,7 @@ public class AnimandMovement : MonoBehaviour
         animator = GetComponent<Animator>();
         capsuleCollider = GetComponent<CapsuleCollider>();
 
-        if (playerInput == null || rb == null || animator == null || capsuleCollider == null)
+        if (rb == null || animator == null || capsuleCollider == null)
         {
             Debug.LogError("Required components missing from GameObject.");
             enabled = false;
@@ -86,6 +98,14 @@ public class AnimandMovement : MonoBehaviour
 
         // Initialize jump variables
         SetupJumpVariables();
+
+        // Initialize mobile controls if needed
+        InitializeMobileControls();
+
+        Debug.Log("Mobile Controls Enabled: " + useMobileControls);
+        Debug.Log("Canvas Reference: " + (mobileControlsCanvas != null ? mobileControlsCanvas.name : "NULL"));
+        Debug.Log("Canvas Active: " + (mobileControlsCanvas != null ? mobileControlsCanvas.activeSelf : false));
+        Debug.Log("Joystick Reference: " + (movementJoystick != null ? movementJoystick.name : "NULL"));
     }
 
     private void SetupAnimatorParameters()
@@ -98,16 +118,65 @@ public class AnimandMovement : MonoBehaviour
 
     private void SetupInputCallbacks()
     {
-        playerInput.actions["Move"].started += onMovementInput;
-        playerInput.actions["Move"].canceled += onMovementInput;
-        playerInput.actions["Move"].performed += onMovementInput;
-
-        playerInput.actions["Sprint"].started += onSprint;
-        playerInput.actions["Sprint"].canceled += onSprint;
-
-        playerInput.actions["Jump"].started += onJump;
-        playerInput.actions["Jump"].canceled += onJump;
+        if (!useMobileControls && playerInput != null)
+        {
+            playerInput.actions["Move"].started += onMovementInput;
+            playerInput.actions["Move"].canceled += onMovementInput;
+            playerInput.actions["Move"].performed += onMovementInput;
+            playerInput.actions["Jump"].started += onJump;
+            playerInput.actions["Jump"].canceled += onJump;
+            Debug.Log("Mobile controls are DISABLED, regular controls enabled");
+        }
+        else
+        {
+            Debug.Log("Mobile controls are ENABLED");
+        }
     }
+
+    private void InitializeMobileControls()
+    {
+        // Setup mobile controls if needed
+        if (useMobileControls)
+        {
+            // Make sure mobile canvas is active
+            if (mobileControlsCanvas != null)
+            {
+                mobileControlsCanvas.SetActive(true);
+            }
+            else
+            {
+                Debug.LogError("Mobile Controls Canvas is not assigned!");
+            }
+
+            // Check if joystick is assigned
+            if (movementJoystick == null)
+            {
+                Debug.LogError("Movement Joystick is not assigned!");
+            }
+
+            // Setup jump button listener
+            if (jumpButton != null)
+            {
+                jumpButton.onClick.AddListener(() => { isJumpPressed = true; });
+            }
+
+
+            // Disable regular input system if using mobile controls
+            if (playerInput != null)
+            {
+                playerInput.actions.Disable();
+            }
+        }
+        else
+        {
+            // Hide mobile controls if not using them
+            if (mobileControlsCanvas != null)
+            {
+                mobileControlsCanvas.SetActive(false);
+            }
+        }
+    }
+
 
     private void SetupJumpVariables()
     {
@@ -134,7 +203,7 @@ public class AnimandMovement : MonoBehaviour
         jumpGravities[0] = gravity;
     }
 
-    private void HandleJump()
+    public void HandleJump()
     {
         // Update coyote time
         if (IsGrounded())
@@ -175,7 +244,7 @@ public class AnimandMovement : MonoBehaviour
             animator.SetInteger(jumpCountHash, jumpCount);
 
             // Apply jump force
-            rb.linearVelocity = new Vector3(rb.linearVelocity.x, initialJumpVelocities[jumpCount], rb.linearVelocity.z);  // Using velocity, not linearVelocity
+            rb.linearVelocity = new Vector3(rb.linearVelocity.x, initialJumpVelocities[jumpCount], rb.linearVelocity.z);
 
             // Reset jump buffer & coyote time
             jumpBufferCounter = 0f;
@@ -185,8 +254,8 @@ public class AnimandMovement : MonoBehaviour
             isJumpPressed = false;
         }
 
-        // **Adjust variable jump height to be more natural**
-        if (!isJumpPressed && rb.linearVelocity.y > 0)  // Using velocity here as well
+        // Adjust variable jump height to be more natural
+        if (!isJumpPressed && rb.linearVelocity.y > 0)
         {
             rb.linearVelocity = new Vector3(rb.linearVelocity.x, rb.linearVelocity.y * 1f, rb.linearVelocity.z); // Less aggressive dampening
         }
@@ -206,9 +275,6 @@ public class AnimandMovement : MonoBehaviour
             }
         }
     }
-
-
-
 
     private bool IsGrounded()
     {
@@ -243,16 +309,13 @@ public class AnimandMovement : MonoBehaviour
         currentJumpResetRoutine = null;
     }
 
+
     private void onMovementInput(InputAction.CallbackContext context)
     {
         currentMovementInput = context.ReadValue<Vector2>();
         isMovementPressed = currentMovementInput.x != 0 || currentMovementInput.y != 0;
     }
 
-    private void onSprint(InputAction.CallbackContext context)
-    {
-        isRunPressed = context.ReadValueAsButton();
-    }
 
     private void onJump(InputAction.CallbackContext context)
     {
@@ -262,37 +325,44 @@ public class AnimandMovement : MonoBehaviour
         }
     }
 
-    // Also update the cleanup in OnDisable to prevent memory leaks
-    private void OnDisable()
+    // Additional method for UI Button click (to be connected in OnClick)
+    public void OnJumpButtonClicked()
     {
-        // Remove the callbacks when disabled
-        if (playerInput != null)
-        {
-            playerInput.actions["Move"].started -= onMovementInput;
-            playerInput.actions["Move"].canceled -= onMovementInput;
-            playerInput.actions["Move"].performed -= onMovementInput;
+        isJumpPressed = true;
+    }
 
-            playerInput.actions["Sprint"].started -= onSprint;
-            playerInput.actions["Sprint"].canceled -= onSprint;
+    // Handle mobile joystick input
+    private void HandleMobileInput()
+    {
+        if (!useMobileControls || movementJoystick == null) return;
 
-            playerInput.actions["Jump"].started -= onJump;
-            playerInput.actions["Jump"].canceled -= onJump;
+        // Get input from joystick
+        Vector2 joystickInput = new Vector2(movementJoystick.Horizontal, movementJoystick.Vertical);
+        Debug.Log("Joystick Input: " + joystickInput);
 
-            playerInput.actions.Disable();
-        }
+        // Update movement variables
+        currentMovementInput = joystickInput;
+        isMovementPressed = joystickInput.magnitude > 0.1f;  // Add small deadzone
     }
 
     private void HandleMovement()
     {
+        if (useMobileControls)
+        {
+            HandleMobileInput();  // Ensure joystick input is read every frame
+        }
+
         if (isMovementPressed)
         {
             Vector3 movementDirection = CalculateMovementDirection();
-            float targetSpeed = isRunPressed ? runSpeed : walkSpeed;
+
+            // Calculate target speed based on joystick magnitude
+            float targetSpeed = Mathf.Lerp(walkSpeed, runSpeed, currentMovementInput.magnitude);
 
             // Calculate target velocity
             Vector3 targetVelocity = movementDirection * targetSpeed;
 
-            // Smoothly interpolate to target velocity
+            // Smooth velocity change
             Vector3 currentHorizontalVelocity = new Vector3(rb.linearVelocity.x, 0, rb.linearVelocity.z);
             Vector3 newVelocity = Vector3.Lerp(
                 currentHorizontalVelocity,
@@ -303,14 +373,24 @@ public class AnimandMovement : MonoBehaviour
             // Apply movement force
             Vector3 velocityChange = newVelocity - currentHorizontalVelocity;
             rb.AddForce(velocityChange, ForceMode.VelocityChange);
+
+            // Update animations
+            animator.SetBool(isWalkingHash, currentMovementInput.magnitude > 0.1f);
+            animator.SetBool(isRunningHash, currentMovementInput.magnitude > 0.5f);
         }
         else
         {
-            // Apply deceleration
+            // Decelerate character smoothly
             Vector3 currentHorizontalVelocity = new Vector3(rb.linearVelocity.x, 0, rb.linearVelocity.z);
             rb.AddForce(-currentHorizontalVelocity * deceleration, ForceMode.Acceleration);
+
+            // Stop animations
+            animator.SetBool(isWalkingHash, false);
+            animator.SetBool(isRunningHash, false);
         }
     }
+
+
 
     private Vector3 CalculateMovementDirection()
     {
@@ -344,29 +424,7 @@ public class AnimandMovement : MonoBehaviour
         }
     }
 
-    private void HandleAnimation()
-    {
-        bool isWalking = animator.GetBool(isWalkingHash);
-        bool isRunning = animator.GetBool(isRunningHash);
-
-        if (isMovementPressed && !isWalking)
-        {
-            animator.SetBool(isWalkingHash, true);
-        }
-        else if (!isMovementPressed && isWalking)
-        {
-            animator.SetBool(isWalkingHash, false);
-        }
-
-        if ((isMovementPressed && isRunPressed) && !isRunning)
-        {
-            animator.SetBool(isRunningHash, true);
-        }
-        else if ((!isMovementPressed || !isRunPressed) && isRunning)
-        {
-            animator.SetBool(isRunningHash, false);
-        }
-    }
+    
 
     private void HandleGravity()
     {
@@ -408,20 +466,55 @@ public class AnimandMovement : MonoBehaviour
 
     private void Update()
     {
+        // Handle mobile input if enabled
+        if (useMobileControls)
+        {
+            HandleMobileInput();
+        }
+
         UpdateMovementState();
         HandleMovement();
         HandleRotation();
-        HandleAnimation();
         HandleGravity();
         HandleJump();
     }
 
     private void OnEnable()
     {
-        playerInput.actions.Enable();
+        if (playerInput != null && !useMobileControls)
+        {
+            playerInput.actions.Enable();
+        }
     }
 
+    private void OnDisable()
+    {
+        // Remove the callbacks when disabled
+        if (playerInput != null)
+        {
+            playerInput.actions["Move"].started -= onMovementInput;
+            playerInput.actions["Move"].canceled -= onMovementInput;
+            playerInput.actions["Move"].performed -= onMovementInput;
 
+            
+
+            playerInput.actions["Jump"].started -= onJump;
+            playerInput.actions["Jump"].canceled -= onJump;
+
+            playerInput.actions.Disable();
+        }
+
+
+
+        // Clean up mobile control listeners
+        if (jumpButton != null)
+        {
+            jumpButton.onClick.RemoveAllListeners();
+        }
+
+
+        
+    }
 
 #if UNITY_EDITOR
     private void OnDrawGizmos()
