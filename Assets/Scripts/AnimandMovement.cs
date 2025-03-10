@@ -495,9 +495,6 @@ public class AnimandMovement : MonoBehaviour
             playerInput.actions["Move"].started -= onMovementInput;
             playerInput.actions["Move"].canceled -= onMovementInput;
             playerInput.actions["Move"].performed -= onMovementInput;
-
-            
-
             playerInput.actions["Jump"].started -= onJump;
             playerInput.actions["Jump"].canceled -= onJump;
 
