@@ -41,6 +41,8 @@ public class EquipWeapon : MonoBehaviour
     [SerializeField] private Transform AKRightHandPos;
     [SerializeField] private Transform AKLeftHandPos;
 
+    [SerializeField] private GameObject aimCam; // Drag AimCam in Inspector
+
     void Start()
     {
         playerAnimator = GetComponent<Animator>();
@@ -59,20 +61,19 @@ public class EquipWeapon : MonoBehaviour
         }
 
         // Toggle Aim (Fire2 - Right Click)
-        if (Input.GetButtonDown("Fire2"))
+        if (Input.GetButtonDown("Fire2") && currentWeapon != null) // Only aim if weapon is equipped
         {
             isAiming = !isAiming; // Toggle aiming state
 
-            if (currentWeapon)
+            aimCam.SetActive(isAiming); // Activate/Deactivate AimCam
+
+            if (currentWeapon.WeaponType == WeaponType.Pistol)
             {
-                if(currentWeapon.WeaponType == WeaponType.Pistol)
-                {
-                    playerAnimator.SetBool("RevolverAim", isAiming);
-                }
-                else if(currentWeapon.WeaponType == WeaponType.Rifle)
-                {
-                    playerAnimator.SetBool("AssaultAim", isAiming);
-                }
+                playerAnimator.SetBool("RevolverAim", isAiming);
+            }
+            else if (currentWeapon.WeaponType == WeaponType.Rifle)
+            {
+                playerAnimator.SetBool("AssaultAim", isAiming);
             }
         }
 
@@ -81,7 +82,7 @@ public class EquipWeapon : MonoBehaviour
         {
             if (isAiming)
             {
-                if(currentWeapon.WeaponType == WeaponType.Pistol)
+                if (currentWeapon.WeaponType == WeaponType.Pistol)
                 {
                     // Attach Weapon to Aim Position
                     currentWeapon.transform.SetParent(pistolAimingPos);
@@ -91,20 +92,18 @@ public class EquipWeapon : MonoBehaviour
                     currentWeapon.transform.SetParent(rifleAimingPos);
                 }
 
-
+                // Don't force identity rotation - let CinemachineAiming handle it
                 currentWeapon.transform.localPosition = Vector3.zero;
-                currentWeapon.transform.localRotation = Quaternion.identity;
 
-                //Enable IK for both hands
+                // Enable IK for both hands
                 leftHandIK.weight = 1f;
                 rightHandIK.weight = 1f;
 
-                //Adjust IK positions based on weapon type
+                // Adjust IK positions based on weapon type
                 if (currentWeapon.WeaponType == WeaponType.Pistol)
                 {
                     leftHandTarget.position = IKLeftHandPos.position;
                     leftHandTarget.rotation = IKLeftHandPos.rotation;
-
 
                     rightHandTarget.position = IKRightHandPos.position;
                     rightHandTarget.rotation = IKRightHandPos.rotation;
@@ -117,7 +116,6 @@ public class EquipWeapon : MonoBehaviour
                     rightHandTarget.position = AKRightHandPos.position;
                     rightHandTarget.rotation = AKRightHandPos.rotation;
                 }
-
             }
             else
             {
@@ -134,7 +132,7 @@ public class EquipWeapon : MonoBehaviour
                 currentWeapon.transform.localPosition = Vector3.zero;
                 currentWeapon.transform.localRotation = Quaternion.identity;
 
-                //Diable IK when not aiming
+                // Disable IK when not aiming
                 leftHandIK.weight = 0f;
                 rightHandIK.weight = 0f;
             }
@@ -207,7 +205,24 @@ public class EquipWeapon : MonoBehaviour
 
         currentWeapon.transform.localPosition = Vector3.zero;
         currentWeapon.transform.localRotation = Quaternion.identity;
+
+        // Pass the weapon transform to the aiming system
+        //FindObjectOfType<CinemachineAiming>().SetWeaponTransform(currentWeapon.transform);
+
+        /*// Ensure weapon stays aligned with the camera during aiming
+        if (isAiming)
+        {
+            Vector3 aimPos = isAiming ? (currentWeapon.WeaponType == WeaponType.Pistol ? pistolAimingPos.position : rifleAimingPos.position) : currentWeapon.transform.position;
+            currentWeapon.transform.position = aimPos;
+        }*/
     }
+
+
+    public bool IsWeaponEquipped()
+    {
+        return currentWeapon != null; // Returns true if a weapon is equipped
+    }
+
 
 
     private void UnEquip()
