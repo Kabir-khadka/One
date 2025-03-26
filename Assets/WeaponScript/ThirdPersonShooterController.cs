@@ -1,11 +1,15 @@
 using UnityEngine;
 using Cinemachine;
+using UnityEngine.InputSystem;
 
 public class ThirdPersonShooterController : MonoBehaviour
 {
     [Header("Cinemachine Cameras")]
     [SerializeField] public CinemachineVirtualCamera thirdPersonCam;
     [SerializeField] public CinemachineVirtualCamera aimCam;
+    [SerializeField] private LayerMask aimColliderLayerMask = new LayerMask();
+    [SerializeField] private Transform pfBulletProjectile;
+    [SerializeField] private Transform spawnBulletPosition;
 
     // Additional variables for controlling camera rotation
     public GameObject CinemachineCameraTarget; // Target for the camera to follow
@@ -20,8 +24,20 @@ public class ThirdPersonShooterController : MonoBehaviour
     private float _cinemachineTargetYaw;
     private float _cinemachineTargetPitch;
 
+    private Vector3 mouseWorldPosition = Vector3.zero;
+
+    //Sensitivity variables for both cameras.
+    [SerializeField] private float normalSensitivity;
+    [SerializeField] private float aimSensitivity;
+
+    private AnimandMovement animAndMovement;
+
+    // Add a reference to AimTarget
+    private Transform aimTarget;
+
     private void Start()
     {
+        animAndMovement = GetComponent<AnimandMovement>();
         equipWeapon = GetComponent<EquipWeapon>(); // Assuming it's on the same GameObject
 
         // Ensure CinemachineCameraTarget is assigned in the Inspector
@@ -29,18 +45,55 @@ public class ThirdPersonShooterController : MonoBehaviour
         {
             CinemachineCameraTarget = GameObject.FindGameObjectWithTag("CinemachineTarget"); // Find by tag
         }
+
+        // Find the AimTarget in the scene
+        aimTarget = GameObject.Find("AimTarget")?.transform;
+        if (aimTarget == null)
+        {
+            Debug.LogWarning("AimTarget not found. Creating one.");
+            GameObject newAimTarget = new GameObject("AimTarget");
+            aimTarget = newAimTarget.transform;
+        }
     }
 
     void Update()
     {
+        //Getting center of the screen since it never changes and also
+        //it helps the aim not to break even if there is no mouse connected
+        Vector2 screenCenterPoint = new Vector2(Screen.width / 2f, Screen.height / 2f);
+
+        Ray ray = Camera.main.ScreenPointToRay(screenCenterPoint);
+        if (Physics.Raycast(ray, out RaycastHit rayCastHit, 999f, aimColliderLayerMask))
+        {
+            mouseWorldPosition = rayCastHit.point;
+        }
+
+        // Update AimTarget position based on raycast hit
+        if (aimTarget != null && mouseWorldPosition != Vector3.zero)
+        {
+            aimTarget.position = mouseWorldPosition;
+        }
+
         // Toggle aim mode with the "Fire2" button (usually right-click or another input)
         if (Input.GetButtonDown("Fire2"))
         {
             ToggleAim();
         }
 
-            CameraRotation(); // Call camera rotation 
-        
+        if (isAiming)
+        {
+            // Optional: You can leave RotatePlayerTowardsMouse() for full body rotation
+            // or comment it out if you only want upper body rotation
+            // RotatePlayerTowardsMouse();
+        }
+
+        //Shooting logic (check if Fire1 is pressed while aiming
+        if (isAiming && Input.GetButtonDown("Fire1"))
+        {
+            ShootBullet();
+        }
+
+        CameraRotation(); // Call camera rotation 
     }
 
     public void ToggleAim()
@@ -57,6 +110,8 @@ public class ThirdPersonShooterController : MonoBehaviour
                 thirdPersonCam.Priority = 9; // Lower priority -> deactivates
                 aimCam.gameObject.SetActive(true); // Enable aim camera
                 thirdPersonCam.gameObject.SetActive(false); // Disable third person camera
+                SetSensitivity(aimSensitivity);
+                animAndMovement.SetRotateOnMove(false);
             }
             else
             {
@@ -64,12 +119,29 @@ public class ThirdPersonShooterController : MonoBehaviour
                 thirdPersonCam.Priority = 11;
                 aimCam.gameObject.SetActive(false); // Disable aim camera
                 thirdPersonCam.gameObject.SetActive(true); // Enable third person camera
+                SetSensitivity(normalSensitivity);
+                animAndMovement.SetRotateOnMove(true);
             }
         }
         else
         {
             isAiming = false; // Prevent aiming if no weapon is equipped
         }
+    }
+
+    public void ShootBullet()
+    {
+        Vector3 aimDir = (mouseWorldPosition - spawnBulletPosition.position).normalized;
+        Instantiate(pfBulletProjectile, spawnBulletPosition.position, Quaternion.LookRotation(aimDir, Vector3.up));
+    }
+
+    private void RotatePlayerTowardsMouse()
+    {
+        Vector3 worldAimTarget = mouseWorldPosition;
+        worldAimTarget.y = transform.position.y;
+        Vector3 aimDirection = (worldAimTarget - transform.position).normalized;
+
+        transform.forward = Vector3.Lerp(transform.forward, aimDirection, Time.deltaTime * 20f);
     }
 
     // Method to rotate the camera based on mouse input
@@ -88,5 +160,10 @@ public class ThirdPersonShooterController : MonoBehaviour
 
         // Apply the calculated rotation to the CinemachineCameraTarget
         CinemachineCameraTarget.transform.rotation = Quaternion.Euler(_cinemachineTargetPitch + CameraAngleOverride, _cinemachineTargetYaw, 0.0f);
+    }
+
+    public void SetSensitivity(float newSensitivity)
+    {
+        Sensitivity = newSensitivity;
     }
 }

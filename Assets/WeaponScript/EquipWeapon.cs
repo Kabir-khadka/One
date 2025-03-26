@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.Animations.Rigging;
+using System.Collections.Generic;
 
 public class EquipWeapon : MonoBehaviour
 {
@@ -11,150 +12,143 @@ public class EquipWeapon : MonoBehaviour
     private RaycastHit bottomRayHitInfo;
 
     private Weapon currentWeapon;
-
-    [Header("Aiming Positions")]
-    [SerializeField] private Transform pistolAimingPos;  // NEW
-    [SerializeField] private Transform rifleAimingPos;   // NEW
-
-    [Header("Equip Positions")]
-    [SerializeField] private Transform pistolEquipPos;
-    [SerializeField] private Transform rifleEquipPos;
-
     private Animator playerAnimator;
-
     private bool isAiming = false;
+    private bool isEquiped;
 
-    [Header("Right Hand Target")]
+    [Header("IK Constraints")]
     [SerializeField] private TwoBoneIKConstraint rightHandIK;
     [SerializeField] private Transform rightHandTarget;
-
-    [Header("Left Hand Target")]
     [SerializeField] private TwoBoneIKConstraint leftHandIK;
     [SerializeField] private Transform leftHandTarget;
 
-    [SerializeField] private Transform IKRightHandPos;
-    [SerializeField] private Transform IKLeftHandPos;
+    [SerializeField] private GameObject aimCam;
+    private Transform aimTarget;
 
-    private bool isEquiped;
+    [Header("Weapon Positions")]
+    [SerializeField] private Transform pistolEquipPos;
+    [SerializeField] private Transform rifleEquipPos;
+    [SerializeField] private Transform pistolAimingPos;
+    [SerializeField] private Transform rifleAimingPos;
+    [SerializeField] private Transform iceGunEquipPos;
+    [SerializeField] private Transform iceGunAimPos;
+    
 
-    [Header("AK47 Hand Positions")]
-    [SerializeField] private Transform AKRightHandPos;
-    [SerializeField] private Transform AKLeftHandPos;
+    private Dictionary<WeaponType, Transform> equipPositions = new Dictionary<WeaponType, Transform>();
+    private Dictionary<WeaponType, Transform> aimPositions = new Dictionary<WeaponType, Transform>();
 
-    [SerializeField] private GameObject aimCam; // Drag AimCam in Inspector
+    private Transform IKRightHandPos;
+    private Transform IKLeftHandPos;
 
     void Start()
     {
         playerAnimator = GetComponent<Animator>();
+        aimTarget = GameObject.Find("AimTarget")?.transform;
+        if (aimTarget == null)
+        {
+            Debug.LogWarning("AimTarget not found in scene. Please create an empty GameObject named 'AimTarget'.");
+        }
+
+        // Initialize equip and aim positions
+        equipPositions[WeaponType.Pistol] = pistolEquipPos;
+        equipPositions[WeaponType.Rifle] = rifleEquipPos;
+        equipPositions[WeaponType.Ice_Gun] = iceGunEquipPos;
+
+
+       //aiming positions
+        aimPositions[WeaponType.Pistol] = pistolAimingPos;
+        aimPositions[WeaponType.Rifle] = rifleAimingPos;
+        aimPositions[WeaponType.Ice_Gun] = iceGunAimPos;
+
+
     }
 
     private void Update()
     {
-        if (Input.GetKeyDown(KeyCode.E))
+        // Check if the player is running
+        bool isRunning = playerAnimator.GetBool("isRunning");
+
+        if (Input.GetKeyDown(KeyCode.E)) Equip();
+        if (Input.GetKeyDown(KeyCode.Q)) UnEquip();
+
+        if (Input.GetButtonDown("Fire2") && currentWeapon != null)
         {
-            Equip();
+            isAiming = !isAiming;
+            aimCam.SetActive(isAiming);
+            playerAnimator.SetBool(currentWeapon.WeaponType == WeaponType.Pistol 
+                || currentWeapon.WeaponType == WeaponType.Ice_Gun ? "RevolverAim" : "AssaultAim", isAiming);
         }
 
-        if (Input.GetKeyDown(KeyCode.Q))
-        {
-            UnEquip();
-        }
-
-        // Toggle Aim (Fire2 - Right Click)
-        if (Input.GetButtonDown("Fire2") && currentWeapon != null) // Only aim if weapon is equipped
-        {
-            isAiming = !isAiming; // Toggle aiming state
-
-            aimCam.SetActive(isAiming); // Activate/Deactivate AimCam
-
-            if (currentWeapon.WeaponType == WeaponType.Pistol)
-            {
-                playerAnimator.SetBool("RevolverAim", isAiming);
-            }
-            else if (currentWeapon.WeaponType == WeaponType.Rifle)
-            {
-                playerAnimator.SetBool("AssaultAim", isAiming);
-            }
-        }
-
-        // Adjust Weapon Position Based on Aim State
         if (currentWeapon)
         {
+            // Determine the target position based on aiming
+            Transform targetPos = isAiming ? aimPositions[currentWeapon.WeaponType] : equipPositions[currentWeapon.WeaponType];
+            currentWeapon.transform.SetParent(targetPos);
+            currentWeapon.transform.position = targetPos.position;
+            currentWeapon.transform.rotation = targetPos.rotation;
+
+            // Adjust the weapon's rotation while aiming
+            if (isAiming && aimTarget != null)
+            {
+                Vector3 aimDir = (aimTarget.position - currentWeapon.transform.position).normalized;
+                targetPos.rotation = Quaternion.LookRotation(aimDir);
+            }
+
+            // Adjust IK weights based on aiming and running states
             if (isAiming)
             {
+                leftHandIK.weight = isRunning ? 0.3f : 1f;
+                rightHandIK.weight = isRunning ? 0.3f : 1f;
+
+                // Adjust right-hand IK based on running state
                 if (currentWeapon.WeaponType == WeaponType.Pistol)
                 {
-                    // Attach Weapon to Aim Position
-                    currentWeapon.transform.SetParent(pistolAimingPos);
+                    rightHandIK.weight = isRunning ? 0.5f : 1f;
                 }
                 else if (currentWeapon.WeaponType == WeaponType.Rifle)
                 {
-                    currentWeapon.transform.SetParent(rifleAimingPos);
+                    rightHandIK.weight = isRunning ? 0.3f : 0.8f;
+                    leftHandIK.weight = isRunning ? 0.3f : 0.8f;
+                }
+                else if (currentWeapon.WeaponType == WeaponType.Ice_Gun)
+                {
+                    rightHandIK.weight = isRunning ? 0.3f : 0.8f;
+                    leftHandIK.weight = isRunning ? 0.3f : 0.8f;
                 }
 
-                // Don't force identity rotation - let CinemachineAiming handle it
-                currentWeapon.transform.localPosition = Vector3.zero;
+                // Find hand positions for IK targeting
+                IKRightHandPos = currentWeapon.transform.Find("RightHandPos");
+                IKLeftHandPos = currentWeapon.transform.Find("LeftHandPos");
 
-                // Enable IK for both hands
-                leftHandIK.weight = 1f;
-                rightHandIK.weight = 1f;
-
-                // Adjust IK positions based on weapon type
-                if (currentWeapon.WeaponType == WeaponType.Pistol)
+                // Set right hand IK target position and rotation
+                if (IKRightHandPos != null)
                 {
-                    leftHandTarget.position = IKLeftHandPos.position;
-                    leftHandTarget.rotation = IKLeftHandPos.rotation;
-
                     rightHandTarget.position = IKRightHandPos.position;
                     rightHandTarget.rotation = IKRightHandPos.rotation;
                 }
-                else if (currentWeapon.WeaponType == WeaponType.Rifle)
+                else
                 {
-                    leftHandTarget.position = AKLeftHandPos.position;
-                    leftHandTarget.rotation = AKLeftHandPos.rotation;
+                    Debug.LogWarning("Right Hand Pos not found in currentWeapon!");
+                }
 
-                    rightHandTarget.position = AKRightHandPos.position;
-                    rightHandTarget.rotation = AKRightHandPos.rotation;
+                // Set left hand IK target position and rotation
+                if (IKLeftHandPos != null)
+                {
+                    leftHandTarget.position = IKLeftHandPos.position;
+                    leftHandTarget.rotation = IKLeftHandPos.rotation;
+                }
+                else
+                {
+                    Debug.LogWarning("Left Hand Pos not found in currentWeapon!");
                 }
             }
             else
             {
-                // Attach to correct equip position
-                if (currentWeapon.WeaponType == WeaponType.Pistol)
-                {
-                    currentWeapon.transform.SetParent(pistolEquipPos);
-                }
-                else if (currentWeapon.WeaponType == WeaponType.Rifle)
-                {
-                    currentWeapon.transform.SetParent(rifleEquipPos);
-                }
-
-                currentWeapon.transform.localPosition = Vector3.zero;
-                currentWeapon.transform.localRotation = Quaternion.identity;
-
-                // Disable IK when not aiming
+                // Reset IK weights when not aiming
                 leftHandIK.weight = 0f;
                 rightHandIK.weight = 0f;
             }
         }
-
-        // Smoothly Adjust Right-Hand IK When Running
-        bool isRunning = playerAnimator.GetBool("IsRunning");
-
-        if (currentWeapon)
-        {
-            if (currentWeapon.WeaponType == WeaponType.Pistol)
-            {
-                rightHandIK.weight = isAiming ? (isRunning ? 0.5f : 1f) : 0f;
-            }
-
-            else if (currentWeapon.WeaponType == WeaponType.Rifle)
-            {
-                rightHandIK.weight = isAiming ? (isRunning ? 0.3f : 0.8f) : 0f;
-                leftHandIK.weight = isAiming ? (isRunning ? 0.3f : 0.8f) : 0f;
-            }
-        }
-        rightHandIK.weight = isAiming ? (isRunning ? 0.5f : 1f) : 0f;
     }
 
 
@@ -162,9 +156,8 @@ public class EquipWeapon : MonoBehaviour
     {
         Ray topRay = new Ray(transform.position + rayOffset, transform.forward);
         Ray bottomRay = new Ray(transform.position + Vector3.up * 0.375f, transform.forward);
-
-        Debug.DrawRay(transform.position + rayOffset, transform.forward * rayLength, Color.red);
-        Debug.DrawRay(transform.position + Vector3.up * 0.375f, transform.forward * rayLength, Color.green);
+        Debug.DrawRay(topRay.origin, topRay.direction * rayLength, Color.red);
+        Debug.DrawRay(bottomRay.origin, bottomRay.direction * rayLength, Color.green);
 
         Physics.Raycast(topRay, out topRayHitInfo, rayLength, weaponMask);
         Physics.Raycast(bottomRay, out bottomRayHitInfo, rayLength, weaponMask);
@@ -176,74 +169,45 @@ public class EquipWeapon : MonoBehaviour
 
         if (topRayHitInfo.collider != null)
         {
-            currentWeapon = topRayHitInfo.transform.gameObject.GetComponent<Weapon>();
+            currentWeapon = topRayHitInfo.transform.GetComponent<Weapon>();
         }
-
         if (bottomRayHitInfo.collider)
         {
-            currentWeapon = bottomRayHitInfo.transform.gameObject.GetComponent<Weapon>();
+            currentWeapon = bottomRayHitInfo.transform.GetComponent<Weapon>();
         }
-
         if (!currentWeapon) return;
 
-        // Stop weapon rotation when equipped
         currentWeapon.isRotating = false;
-
         currentWeapon.ChangeBehaviour();
-
         isEquiped = true;
 
-        // Set correct equip position
-        if (currentWeapon.WeaponType == WeaponType.Pistol)
+        if (!equipPositions.TryGetValue(currentWeapon.WeaponType, out Transform equipPos))
         {
-            currentWeapon.transform.SetParent(pistolEquipPos);
-        }
-        else if (currentWeapon.WeaponType == WeaponType.Rifle)
-        {
-            currentWeapon.transform.SetParent(rifleEquipPos);
+            Debug.LogError("No equip position defined for " + currentWeapon.WeaponType);
+            return;
         }
 
-        currentWeapon.transform.localPosition = Vector3.zero;
-        currentWeapon.transform.localRotation = Quaternion.identity;
-
-        // Pass the weapon transform to the aiming system
-        //FindObjectOfType<CinemachineAiming>().SetWeaponTransform(currentWeapon.transform);
-
-        /*// Ensure weapon stays aligned with the camera during aiming
-        if (isAiming)
-        {
-            Vector3 aimPos = isAiming ? (currentWeapon.WeaponType == WeaponType.Pistol ? pistolAimingPos.position : rifleAimingPos.position) : currentWeapon.transform.position;
-            currentWeapon.transform.position = aimPos;
-        }*/
+        currentWeapon.transform.SetParent(equipPos);
+        currentWeapon.transform.position = equipPos.position;
+        currentWeapon.transform.rotation = equipPos.rotation;
     }
-
 
     public bool IsWeaponEquipped()
     {
-        return currentWeapon != null; // Returns true if a weapon is equipped
+        return currentWeapon != null;
     }
-
-
 
     private void UnEquip()
     {
         if (isEquiped)
         {
             rightHandIK.weight = 0.0f;
-
-            if (IKLeftHandPos)
-            {
-                leftHandIK.weight = 0.0f;
-            }
-
+            leftHandIK.weight = 0.0f;
             isEquiped = false;
             currentWeapon.transform.parent = null;
-
             currentWeapon.transform.rotation = Quaternion.Euler(0.0f, 0.0f, 0.0f);
             currentWeapon.GetComponent<Rigidbody>().isKinematic = false;
-
-            currentWeapon.isRotating = true;  //This ensures it rotates after being dropped
-
+            currentWeapon.isRotating = true;
             currentWeapon = null;
         }
     }

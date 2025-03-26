@@ -3,7 +3,10 @@ using UnityEngine;
 public enum WeaponType
 {
     Pistol,
-    Rifle
+    Rifle,
+    Ice_Gun,
+    Bubble_Gun,
+    Electric_Gun
 }
 
 public class Weapon : MonoBehaviour

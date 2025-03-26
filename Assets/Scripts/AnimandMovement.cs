@@ -67,6 +67,9 @@ public class AnimandMovement : MonoBehaviour
     private float groundedGravity = -0.05f;
     private Vector3 appliedMovement;
 
+    //Add the flag to control rotation on movement
+    private bool _rotateOnMove = true;
+
     private enum MovementState
     {
         Grounded,
@@ -409,7 +412,7 @@ public class AnimandMovement : MonoBehaviour
 
     private void HandleRotation()
     {
-        if (isMovementPressed)
+        if (_rotateOnMove && isMovementPressed)
         {
             Vector3 movementDirection = CalculateMovementDirection();
             if (movementDirection != Vector3.zero)
@@ -511,6 +514,12 @@ public class AnimandMovement : MonoBehaviour
 
 
         
+    }
+
+    //Method to set whether rotation on move is allowed
+    public void SetRotateOnMove(bool newRotateMove)
+    {
+        _rotateOnMove = newRotateMove;
     }
 
 #if UNITY_EDITOR
