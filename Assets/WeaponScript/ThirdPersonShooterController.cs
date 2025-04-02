@@ -1,52 +1,62 @@
 using UnityEngine;
 using Cinemachine;
 using UnityEngine.InputSystem;
+using System.Collections.Generic;
 
 public class ThirdPersonShooterController : MonoBehaviour
 {
     [Header("Cinemachine Cameras")]
-    [SerializeField] public CinemachineVirtualCamera thirdPersonCam;
-    [SerializeField] public CinemachineVirtualCamera aimCam;
-    [SerializeField] private LayerMask aimColliderLayerMask = new LayerMask();
-    [SerializeField] private Transform pfBulletProjectile;
-    [SerializeField] private Transform spawnBulletPosition;
+    [SerializeField] public CinemachineVirtualCamera thirdPersonCam; // Standard third-person camera
+    [SerializeField] public CinemachineVirtualCamera aimCam; // Aiming camera
+    [SerializeField] private LayerMask aimColliderLayerMask = new LayerMask(); // Layer mask for aiming collision detection
+    [SerializeField] private Transform pfBulletProjectile; // Prefab for bullets
+    [SerializeField] private Transform spawnBulletPosition; // Position where bullets are spawned
+    [SerializeField] private ParticleSystem iceParticleSystem; // Refernce to Ice_Gun's particle effect
 
-    // Additional variables for controlling camera rotation
-    public GameObject CinemachineCameraTarget; // Target for the camera to follow
-    public float TopClamp = 70.0f; // Vertical limit for camera rotation
-    public float BottomClamp = -30.0f; // Vertical limit for camera rotation
-    public float CameraAngleOverride = 0.0f; // Optional for fine-tuning camera position
-    public float Sensitivity = 1.0f; // Mouse sensitivity for camera rotation
+    public GameObject CinemachineCameraTarget; // Camera target for rotation
+    public float TopClamp = 70.0f; // Upper limit for vertical camera rotation
+    public float BottomClamp = -30.0f; // Lower limit for vertical camera rotation
+    public float CameraAngleOverride = 0.0f; // Additional angle offset
+    public float Sensitivity = 1.0f; // Mouse sensitivity
 
-    private EquipWeapon equipWeapon;
-    public bool isAiming = false;
+    private EquipWeapon equipWeapon; // Reference to the weapon equip script
+    public bool isAiming = false; // Aiming state
 
-    private float _cinemachineTargetYaw;
-    private float _cinemachineTargetPitch;
+    private float _cinemachineTargetYaw; // Yaw rotation value
+    private float _cinemachineTargetPitch; // Pitch rotation value
 
-    private Vector3 mouseWorldPosition = Vector3.zero;
+    private Vector3 mouseWorldPosition = Vector3.zero; // World position of the aiming point
 
-    //Sensitivity variables for both cameras.
-    [SerializeField] private float normalSensitivity;
-    [SerializeField] private float aimSensitivity;
+    [SerializeField] private float normalSensitivity; // Sensitivity for normal mode
+    [SerializeField] private float aimSensitivity; // Sensitivity for aiming mode
+    
+    private AnimandMovement animAndMovement; // Reference to movement and animation script
+    private Transform aimTarget; // Target the player aims at
 
-    private AnimandMovement animAndMovement;
+    [SerializeField] private float nextFireTime = 0f;
 
-    // Add a reference to AimTarget
-    private Transform aimTarget;
+    // Dictionary to store fire rates per weapon type
+    private Dictionary<WeaponType, float> fireRates = new Dictionary<WeaponType, float>()
+    {
+        { WeaponType.Pistol, 0.3f }, // Semi-Auto
+        { WeaponType.Rifle, 0.1f }, //Automatic
+        { WeaponType.Ice_Gun, 0.07f }, // Automatic (faster)
+        { WeaponType.Bubble_Gun, 0.5f }, //Slow-Fire
+        { WeaponType.Electric_Gun, 0.8f }, // Charged Shot (Later)
+    };
 
     private void Start()
     {
         animAndMovement = GetComponent<AnimandMovement>();
-        equipWeapon = GetComponent<EquipWeapon>(); // Assuming it's on the same GameObject
+        equipWeapon = GetComponent<EquipWeapon>();
 
-        // Ensure CinemachineCameraTarget is assigned in the Inspector
+        // Find the Cinemachine camera target if not assigned
         if (CinemachineCameraTarget == null)
         {
-            CinemachineCameraTarget = GameObject.FindGameObjectWithTag("CinemachineTarget"); // Find by tag
+            CinemachineCameraTarget = GameObject.FindGameObjectWithTag("CinemachineTarget");
         }
 
-        // Find the AimTarget in the scene
+        // Find or create the AimTarget object
         aimTarget = GameObject.Find("AimTarget")?.transform;
         if (aimTarget == null)
         {
@@ -58,110 +68,148 @@ public class ThirdPersonShooterController : MonoBehaviour
 
     void Update()
     {
-        //Getting center of the screen since it never changes and also
-        //it helps the aim not to break even if there is no mouse connected
+        // Get the screen center position for raycasting
         Vector2 screenCenterPoint = new Vector2(Screen.width / 2f, Screen.height / 2f);
 
+        // Raycast to detect where the player is aiming
         Ray ray = Camera.main.ScreenPointToRay(screenCenterPoint);
         if (Physics.Raycast(ray, out RaycastHit rayCastHit, 999f, aimColliderLayerMask))
         {
             mouseWorldPosition = rayCastHit.point;
         }
 
-        // Update AimTarget position based on raycast hit
+        // Update the aim target position
         if (aimTarget != null && mouseWorldPosition != Vector3.zero)
         {
             aimTarget.position = mouseWorldPosition;
         }
 
-        // Toggle aim mode with the "Fire2" button (usually right-click or another input)
+        // Toggle aiming when the player presses Fire2 (Right Mouse Button by default)
         if (Input.GetButtonDown("Fire2"))
         {
             ToggleAim();
         }
 
-        if (isAiming)
+        // Shoot when aiming and pressing Fire1 (Left Mouse Button by default)
+        if (isAiming && equipWeapon != null && equipWeapon.IsWeaponEquipped())
         {
-            // Optional: You can leave RotatePlayerTowardsMouse() for full body rotation
-            // or comment it out if you only want upper body rotation
-            // RotatePlayerTowardsMouse();
-        }
+            WeaponType currentWeaponType = equipWeapon.currentWeapon.WeaponType;
 
-        //Shooting logic (check if Fire1 is pressed while aiming
-        if (isAiming && Input.GetButtonDown("Fire1"))
-        {
-            ShootBullet();
-        }
+            if (currentWeaponType == WeaponType.Ice_Gun)
+            {
+                // Ice Gun: Enable and disable particle system on Fire1 input
+                if (Input.GetButtonDown("Fire1"))
+                {
+                    // Rotate the particle system to face the aim direction
+                    Vector3 aimDir = (mouseWorldPosition - spawnBulletPosition.position).normalized;
+                    iceParticleSystem.transform.rotation = Quaternion.LookRotation(aimDir, Vector3.up);
 
-        CameraRotation(); // Call camera rotation 
+                    // Immediately start particle system when first pressing the button
+                    iceParticleSystem.Play();
+                }
+                else if (Input.GetButton("Fire1"))
+                {
+                    // Rotate the particle system to face the aim direction
+                    Vector3 aimDir = (mouseWorldPosition - spawnBulletPosition.position).normalized;
+                    iceParticleSystem.transform.rotation = Quaternion.LookRotation(aimDir, Vector3.up);
+
+                    // Ensure the system is playing while button is held
+                    if (!iceParticleSystem.isPlaying)
+                    {
+                        iceParticleSystem.Play();
+                    }
+                }
+                else if (Input.GetButtonUp("Fire1"))
+                {
+                    // Stop when button is released
+                    iceParticleSystem.Stop();
+                }
+            }
+            else if (fireRates.ContainsKey(currentWeaponType))
+            {
+                float fireRate = fireRates[currentWeaponType];
+
+                // Automatic Weapons: Fire continously if Fire1 is held
+                if (currentWeaponType == WeaponType.Rifle)
+                {
+                    if (Input.GetButton("Fire1") && Time.time >= nextFireTime)
+                    {
+                        nextFireTime = Time.time + fireRate;
+                        ShootBullet();
+                    }
+                }
+
+                // Semi Auto / Slow Weapons: Fire only on button press
+                else if (Input.GetButtonDown("Fire1") && Time.time >= nextFireTime)
+                {
+                    nextFireTime = Time.time + fireRate;
+                    ShootBullet();
+                }
+            }
+        }
+        // Handle camera rotation based on mouse movement
+        CameraRotation();
     }
 
+    // Toggles aiming mode
     public void ToggleAim()
     {
-        // Check if a weapon is equipped before allowing aiming
         if (equipWeapon != null && equipWeapon.IsWeaponEquipped())
         {
             isAiming = !isAiming;
 
-            // Adjust camera priority and ensure active camera switch
             if (isAiming)
             {
-                aimCam.Priority = 11;  // Higher priority -> becomes active
-                thirdPersonCam.Priority = 9; // Lower priority -> deactivates
-                aimCam.gameObject.SetActive(true); // Enable aim camera
-                thirdPersonCam.gameObject.SetActive(false); // Disable third person camera
+                // Switch to aiming camera
+                aimCam.Priority = 11;
+                thirdPersonCam.Priority = 9;
+                aimCam.gameObject.SetActive(true);
+                thirdPersonCam.gameObject.SetActive(false);
                 SetSensitivity(aimSensitivity);
                 animAndMovement.SetRotateOnMove(false);
             }
             else
             {
+                // Switch back to third-person camera
                 aimCam.Priority = 9;
                 thirdPersonCam.Priority = 11;
-                aimCam.gameObject.SetActive(false); // Disable aim camera
-                thirdPersonCam.gameObject.SetActive(true); // Enable third person camera
+                aimCam.gameObject.SetActive(false);
+                thirdPersonCam.gameObject.SetActive(true);
                 SetSensitivity(normalSensitivity);
                 animAndMovement.SetRotateOnMove(true);
             }
         }
         else
         {
-            isAiming = false; // Prevent aiming if no weapon is equipped
+            isAiming = false;
         }
     }
 
+    // Handles shooting mechanics
     public void ShootBullet()
     {
-        Vector3 aimDir = (mouseWorldPosition - spawnBulletPosition.position).normalized;
-        Instantiate(pfBulletProjectile, spawnBulletPosition.position, Quaternion.LookRotation(aimDir, Vector3.up));
+            // Determine the direction of the bullet
+            Vector3 aimDir = (mouseWorldPosition - spawnBulletPosition.position).normalized;
+            Instantiate(pfBulletProjectile, spawnBulletPosition.position, Quaternion.LookRotation(aimDir, Vector3.up));
     }
 
-    private void RotatePlayerTowardsMouse()
-    {
-        Vector3 worldAimTarget = mouseWorldPosition;
-        worldAimTarget.y = transform.position.y;
-        Vector3 aimDirection = (worldAimTarget - transform.position).normalized;
-
-        transform.forward = Vector3.Lerp(transform.forward, aimDirection, Time.deltaTime * 20f);
-    }
-
-    // Method to rotate the camera based on mouse input
+    // Handles camera rotation based on mouse movement
     private void CameraRotation()
     {
-        // Get mouse input and apply sensitivity
         float mouseX = Input.GetAxis("Mouse X");
         float mouseY = Input.GetAxis("Mouse Y");
 
-        // Update yaw (horizontal rotation) and pitch (vertical rotation) based on mouse input
         _cinemachineTargetYaw += mouseX * Sensitivity;
         _cinemachineTargetPitch -= mouseY * Sensitivity;
 
-        // Clamp the pitch to prevent excessive up/down rotation
+        // Clamp vertical rotation to avoid flipping the camera
         _cinemachineTargetPitch = Mathf.Clamp(_cinemachineTargetPitch, BottomClamp, TopClamp);
 
-        // Apply the calculated rotation to the CinemachineCameraTarget
+        // Apply rotation to the camera target
         CinemachineCameraTarget.transform.rotation = Quaternion.Euler(_cinemachineTargetPitch + CameraAngleOverride, _cinemachineTargetYaw, 0.0f);
     }
 
+    // Sets the camera sensitivity
     public void SetSensitivity(float newSensitivity)
     {
         Sensitivity = newSensitivity;

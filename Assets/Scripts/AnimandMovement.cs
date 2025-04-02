@@ -78,6 +78,16 @@ public class AnimandMovement : MonoBehaviour
     }
     private MovementState currentState;
 
+    public float GetMoveSpeed()
+    {
+        return walkSpeed;
+    }
+
+    public void SetMoveSpeed(float newSpeed)
+    {
+        walkSpeed = newSpeed;
+    }
+
     private void Awake()
     {
         // Get component references
