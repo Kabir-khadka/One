@@ -26,15 +26,11 @@ public class EquipWeapon : MonoBehaviour
     private Transform aimTarget;
 
     [Header("Weapon Equip Positions")]
-    [SerializeField] private Transform pistolEquipPos;
-    [SerializeField] private Transform rifleEquipPos;
     [SerializeField] private Transform iceGunEquipPos;
     [SerializeField] private Transform electricGunEquipPos;
     [SerializeField] private Transform bubbleGunEquipPos;
 
     [Header("Weapon Aim Positions")]
-    [SerializeField] private Transform pistolAimingPos;
-    [SerializeField] private Transform rifleAimingPos;
     [SerializeField] private Transform iceGunAimingPos;
     [SerializeField] private Transform electricGunAimPos;
     [SerializeField] private Transform bubbleGunAimPos;
@@ -51,14 +47,10 @@ public class EquipWeapon : MonoBehaviour
             Debug.LogWarning("AimTarget not found in scene. Please create an empty GameObject named 'AimTarget'.");
         }
 
-        equipPositions[WeaponType.Pistol] = pistolEquipPos;
-        equipPositions[WeaponType.Rifle] = rifleEquipPos;
         equipPositions[WeaponType.Ice_Gun] = iceGunEquipPos;
         equipPositions[WeaponType.Electric_Gun] = electricGunEquipPos;
         equipPositions[WeaponType.Bubble_Gun] = bubbleGunEquipPos;
 
-        aimPositions[WeaponType.Pistol] = pistolAimingPos;
-        aimPositions[WeaponType.Rifle] = rifleAimingPos;
         aimPositions[WeaponType.Ice_Gun] = iceGunAimingPos;
         aimPositions[WeaponType.Electric_Gun] = electricGunAimPos;
         aimPositions[WeaponType.Bubble_Gun] = bubbleGunAimPos;
@@ -104,14 +96,6 @@ public class EquipWeapon : MonoBehaviour
 
         switch (currentWeapon.WeaponType)
         {
-            case WeaponType.Pistol:
-                rightHandPos = currentWeapon.transform.Find("NPistolRightHandPos") ?? currentWeapon.transform.Find("HeavyPistolRightHandPos");
-                leftHandPos = currentWeapon.transform.Find("NPistolLeftHandPos") ?? currentWeapon.transform.Find("HeavyPistolLeftHandPos");
-                break;
-            case WeaponType.Rifle:
-                rightHandPos = currentWeapon.transform.Find("AKRightHandPos");
-                leftHandPos = currentWeapon.transform.Find("AKLeftHandPos");
-                break;
             case WeaponType.Ice_Gun:
                 rightHandPos = currentWeapon.transform.Find("IceGunRightHandPos");
                 leftHandPos = currentWeapon.transform.Find("IceGunLeftHandPos");
