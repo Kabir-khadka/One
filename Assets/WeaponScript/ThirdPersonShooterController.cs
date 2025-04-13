@@ -144,6 +144,25 @@ public class ThirdPersonShooterController : MonoBehaviour
             {
                 if (Input.GetButtonDown("Fire1") && Time.time >= nextFireTime)
                 {
+                    Weapon currentWeapon = equipWeapon.currentWeapon;
+
+                    // If Bubble_Gun has bullets left
+                    if (!currentWeapon.IsOutOfBullets())
+                    {
+                        nextFireTime = Time.time + fireRates[currentWeaponType];
+                        ShootBombBullet();
+
+                        // Decrease bullet count
+                        currentWeapon.DecreaseBullet();
+
+                        // If that was the last bullet, destroy the weapon
+                        if (currentWeapon.IsOutOfBullets())
+                        {
+                            Destroy(currentWeapon.gameObject); // Destrot the gun
+                            equipWeapon.UnEquip(); // Unequip logic from the EquipWeapon script
+                            Debug.Log("Bubble Gun destroyed after 3 shots");
+                        }
+                    }
                     // Fire electric bullet if cooldown has elapsed
                     nextFireTime = Time.time + fireRates[currentWeaponType];
                     ShootBombBullet();

@@ -10,6 +10,27 @@ public class RotatingObstacle : ObstacleBase
     [SerializeField] private float spinForceMultiplier = 0.5f; // Knockback scales with rotation speed
     [SerializeField] private float maxExtraKnockback = 50f; // Cap additional force
 
+    [Header("Audio Settings")]
+    [SerializeField] private AudioSource rotationAudioSource;
+
+    private void Start()
+    {
+        if (rotationAudioSource != null)
+        {
+            rotationAudioSource.loop = true;
+            rotationAudioSource.playOnAwake = false;
+
+            //Optional: Sync pitch to rotation speed
+            rotationAudioSource.pitch = Mathf.Clamp(rotationSpeed / 100f, 0.5f, 2f);
+
+            rotationAudioSource.Play();
+        }
+        else
+        {
+            Debug.LogWarning("Rotation AudioSource is not assigned on: " + gameObject.name);
+        }
+    }
+
 
     private void Update()
     {

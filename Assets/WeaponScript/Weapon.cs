@@ -12,11 +12,20 @@ public enum WeaponType
 
 public class Weapon : MonoBehaviour
 {
+    [SerializeField] private int bulletCount = 3;
+    public int BulletCount => bulletCount;
+
     private Rigidbody weaponRigidbody;  // Rigidbody component of the weapon
     [SerializeField] private WeaponType weaponType;  // Type of weapon (set in Inspector)
 
     // Public property to access the weapon type
     public WeaponType WeaponType => weaponType;
+
+    //Check if the weapon uses limited bullets 
+    public bool UsesLimitedBullets()
+    {
+        return weaponType == WeaponType.Bubble_Gun;
+    }
 
     // Flag to determine if the weapon should rotate
     public bool isRotating { get; set; }
@@ -31,6 +40,17 @@ public class Weapon : MonoBehaviour
         {
             weaponRigidbody.isKinematic = true;
         }
+    }
+
+    public void DecreaseBullet()
+    {
+        bulletCount--;
+    }
+
+    //Check if bullets are exhausted
+    public bool IsOutOfBullets()
+    {
+        return bulletCount <= 0;
     }
 
     // Trigger event when the weapon collides with another object

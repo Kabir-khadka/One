@@ -14,9 +14,16 @@ public class CollapsingPlatform : ObstacleBase
     private float crackStrength = 0f;
     private Renderer mainRenderer;
     private Collider mainCollider;
+    private AudioSource breakSound;
 
     private void Start()
     {
+        breakSound = GetComponent<AudioSource>();
+        if (breakSound == null)
+        {
+            Debug.LogWarning("No AudioSource found on platform: " + gameObject.name);
+        }
+
         originalPosition = transform.position;
         originalRotation = transform.rotation;
 
@@ -77,6 +84,9 @@ public class CollapsingPlatform : ObstacleBase
         }
 
         Debug.Log("4 second crack animation completed, platform disabled");
+
+        // Play break sound
+        breakSound.Play();
 
         // Disable platform
         if (mainRenderer != null)

@@ -3,10 +3,14 @@ using System.Collections.Generic;
 
 public class ShakingPlatform : ObstacleBase
 {
+    [Header("Shake Settings")]
     [SerializeField] private float shakeIntensity = 0.1f;
     [SerializeField] private float shakeSpeed = 10f;
     [SerializeField] private float shakeDuration = 2f;
     [SerializeField] private float timeBetweenShakes = 5f;
+
+    [Header("Audio Settings")]
+    [SerializeField] private AudioSource shakeAudioSource;
 
     private Vector3 originalPosition;
     private bool isShaking = false;
@@ -28,6 +32,22 @@ public class ShakingPlatform : ObstacleBase
     private void StartShaking()
     {
         isShaking = true;
+
+        //PLay the shake sound here when shaking starts
+        if(shakeAudioSource != null)
+        {
+            shakeAudioSource.Play();
+
+            //Optionally stop the sound manually after shakeDuration
+            if (shakeAudioSource.clip != null && shakeAudioSource.clip.length > shakeDuration)
+            {
+                Invoke(nameof(StopShakeSound), shakeDuration);
+            }
+        }
+        else
+        {
+            Debug.LogWarning("Shake AudioSource is not assign on: " + gameObject.name);
+        }
         Invoke(nameof(StopShaking), shakeDuration);
     }
 
@@ -35,6 +55,17 @@ public class ShakingPlatform : ObstacleBase
     {
         isShaking = false;
         transform.position = originalPosition;
+
+        //Stop the shake sound here too (if not already stopped)
+        StopShakeSound();
+    }
+
+    private void StopShakeSound()
+    {
+        if (shakeAudioSource != null && shakeAudioSource.isPlaying)
+        {
+            shakeAudioSource.Stop();
+        }
     }
 
     private void Update()

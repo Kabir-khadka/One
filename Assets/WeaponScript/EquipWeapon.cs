@@ -161,7 +161,7 @@ public class EquipWeapon : MonoBehaviour
         return currentWeapon != null; // Returns true if a weapon is equipped
     }
 
-    private void UnEquip()
+    public void UnEquip()
     {
         if (isEquiped)
         {

@@ -17,6 +17,19 @@ public class AnimandMovement : MonoBehaviour
     private Animator animator;
     private CapsuleCollider capsuleCollider;
 
+    [Header("Audio")]
+    [SerializeField] private AudioSource footstepsAudioSource;
+    [SerializeField] private AudioSource jumpAudioSource;
+    [SerializeField] private AudioClip[] walkSounds;
+    [SerializeField] private AudioClip[] runSounds;
+    [SerializeField] private AudioClip jumpSound;
+    [SerializeField] private AudioClip landSound;
+    [SerializeField] private float walkStepDelay = 0.5f;
+    [SerializeField] private float runStepSelay = 0.3f;
+    private float footstepTimer = 0f;
+    private bool wasGrounded = true;
+    [SerializeField] private float landingSoundCooldown = 0f;
+
     [Header("Movement Settings")]
     [SerializeField] private float walkSpeed = 2f;
     [SerializeField] private float runSpeed = 6f;
@@ -103,6 +116,9 @@ public class AnimandMovement : MonoBehaviour
             return;
         }
 
+        //Setup audio sources if not already assigned
+        SetupAudioSources();
+
         // Set up animator parameters
         SetupAnimatorParameters();
 
@@ -119,6 +135,44 @@ public class AnimandMovement : MonoBehaviour
         Debug.Log("Canvas Reference: " + (mobileControlsCanvas != null ? mobileControlsCanvas.name : "NULL"));
         Debug.Log("Canvas Active: " + (mobileControlsCanvas != null ? mobileControlsCanvas.activeSelf : false));
         Debug.Log("Joystick Reference: " + (movementJoystick != null ? movementJoystick.name : "NULL"));
+    }
+
+    private void SetupAudioSources()
+    {
+        //Create audio sources if they werent assigned in the inspector
+        if (footstepsAudioSource == null)
+        {
+            // Check if there's already an audio source we can use
+            AudioSource[] sources = GetComponents<AudioSource>();
+            if (sources.Length > 0)
+            {
+                footstepsAudioSource = sources[0];
+                if (sources.Length > 1)
+                    jumpAudioSource = sources[1];
+
+            }
+
+            //Create new audio source for footteps if needed
+            if (footstepsAudioSource == null)
+            {
+                footstepsAudioSource = gameObject.AddComponent<AudioSource>();
+                footstepsAudioSource.playOnAwake = false;
+                footstepsAudioSource.spatialBlend = 1.0f; // Full 3D
+                footstepsAudioSource.volume = 2f;
+                footstepsAudioSource.loop = false; // Make sure it doesn't loop
+            }
+
+            //Create new audio source for jump sounds if needed
+            if(jumpAudioSource == null)
+            {
+                jumpAudioSource = gameObject.AddComponent<AudioSource>();
+                jumpAudioSource.playOnAwake = false;
+                jumpAudioSource.spatialBlend = 1.0f;// Full 3D
+                jumpAudioSource.volume = 0.8f;
+                jumpAudioSource.loop = false; // Make sure it doesn't loop
+
+            }
+        }
     }
 
     private void SetupAnimatorParameters()
@@ -196,20 +250,13 @@ public class AnimandMovement : MonoBehaviour
         float timeToApex = maxJumpTime / 2;
         gravity = (-2 * maxJumpHeight) / Mathf.Pow(timeToApex, 2);
 
-        // Calculate different jump heights and velocities
-        for (int i = 1; i <= 3; i++)
+        float initialVelocity = (2 * maxJumpHeight) / timeToApex;
+
+        //Set the same jump height/velocity for all jumps
+        for( int i = 1; i <= 3; i++)
         {
-            float heightModifier = i == 1 ? 0 : (i == 2 ? 2 : 4);
-            float timeModifier = i == 1 ? 1 : (i == 2 ? 1.25f : 1.5f);
-
-            float modifiedHeight = maxJumpHeight + heightModifier;
-            float modifiedTimeToApex = timeToApex * timeModifier;
-
-            float jumpGravity = (-2 * modifiedHeight) / Mathf.Pow(modifiedTimeToApex, 2);
-            float initialVelocity = (2 * modifiedHeight) / modifiedTimeToApex;
-
             initialJumpVelocities[i] = initialVelocity;
-            jumpGravities[i] = jumpGravity;
+            jumpGravities[i] = gravity;
         }
 
         // Add base gravity
@@ -218,6 +265,26 @@ public class AnimandMovement : MonoBehaviour
 
     public void HandleJump()
     {
+        //Update landing sound cooldown
+        if (landingSoundCooldown > 0)
+        {
+            landingSoundCooldown -= Time.deltaTime;
+        }
+
+        //Track if we were grounded in the previous frame
+        bool isGroundedNow = IsGrounded();
+
+        //Detect landing to play land sound
+        if (!wasGrounded && isGroundedNow && landSound != null && landingSoundCooldown <= 0)
+        {
+            jumpAudioSource.clip = landSound;
+            jumpAudioSource.Play();
+            landingSoundCooldown = 0.5f; // Half second cooldown another landing sound can play
+        }
+
+        wasGrounded = isGroundedNow;
+
+
         // Update coyote time
         if (IsGrounded())
         {
@@ -258,6 +325,13 @@ public class AnimandMovement : MonoBehaviour
 
             // Apply jump force
             rb.linearVelocity = new Vector3(rb.linearVelocity.x, initialJumpVelocities[jumpCount], rb.linearVelocity.z);
+
+            //PLay jump sound
+            if (jumpSound != null && jumpAudioSource != null)
+            {
+                jumpAudioSource.clip = jumpSound;
+                jumpAudioSource.Play();
+            }
 
             // Reset jump buffer & coyote time
             jumpBufferCounter = 0f;
@@ -365,6 +439,9 @@ public class AnimandMovement : MonoBehaviour
             HandleMobileInput();  // Ensure joystick input is read every frame
         }
 
+        //Check if character is acrually moving (based on velocity, not just input)
+        bool isActuallyMoving = new Vector3(rb.linearVelocity.x, 0, rb.linearVelocity.z).magnitude > 0.1f;
+
         if (isMovementPressed)
         {
             Vector3 movementDirection = CalculateMovementDirection();
@@ -388,8 +465,34 @@ public class AnimandMovement : MonoBehaviour
             rb.AddForce(velocityChange, ForceMode.VelocityChange);
 
             // Update animations
-            animator.SetBool(isWalkingHash, currentMovementInput.magnitude > 0.1f);
-            animator.SetBool(isRunningHash, currentMovementInput.magnitude > 0.5f);
+            bool isWalking = currentMovementInput.magnitude > 0.1f;
+            bool isRunning = currentMovementInput.magnitude > 0.5f;
+
+            // Update animations
+            animator.SetBool(isWalkingHash, isWalking);
+            animator.SetBool(isRunningHash, isRunning);
+
+            //Handle footstep sounds - only if actually moving on And on the ground
+            if (IsGrounded() && isActuallyMoving && footstepsAudioSource != null)
+            {
+                footstepTimer -= Time.deltaTime;
+
+                if(footstepTimer <= 0)
+                {
+                    // Select appropriate step delay and sounds based on whether we're walking or running
+                    float stepDelay = isRunning ? runStepSelay : walkStepDelay;
+                    AudioClip[] stepSounds = isRunning ? runSounds : walkSounds;
+
+                    if (stepSounds != null && stepSounds.Length > 0)
+                    {
+                        int randomIndex = Random.Range(0, stepSounds.Length);
+                        footstepsAudioSource.clip = stepSounds[randomIndex];
+                        footstepsAudioSource.Play();
+                    }
+
+                    footstepTimer = stepDelay;
+                }
+            }
         }
         else
         {
@@ -400,6 +503,19 @@ public class AnimandMovement : MonoBehaviour
             // Stop animations
             animator.SetBool(isWalkingHash, false);
             animator.SetBool(isRunningHash, false);
+
+            // Reset footstep timer when not moving AND stop any playing footstep sounds
+            footstepTimer = 0f;
+            if (footstepsAudioSource != null && footstepsAudioSource.isPlaying)
+            {
+                footstepsAudioSource.Stop();
+            }
+        }
+
+        //Disable check to make sure sounds stop when not moving
+        if(!isActuallyMoving && footstepsAudioSource != null && footstepsAudioSource.isPlaying)
+        {
+            footstepsAudioSource.Stop();
         }
     }
 
@@ -492,6 +608,21 @@ public class AnimandMovement : MonoBehaviour
         HandleJump();
     }
 
+    public void StopAllAudio()
+    {
+        if (footstepsAudioSource != null && footstepsAudioSource.isPlaying)
+        {
+            footstepsAudioSource.Stop();
+        }
+
+        if (jumpAudioSource != null && jumpAudioSource.isPlaying)
+        {
+            jumpAudioSource.Stop();
+        }
+
+        footstepTimer = 0f;
+    }
+
     private void OnEnable()
     {
         if (playerInput != null && !useMobileControls)
@@ -514,6 +645,15 @@ public class AnimandMovement : MonoBehaviour
             playerInput.actions.Disable();
         }
 
+        // Clean up mobile control listeners
+        if (jumpButton != null)
+        {
+            jumpButton.onClick.RemoveAllListeners();
+        }
+
+        // Stop all audio when component is disabled
+        StopAllAudio();
+
 
 
         // Clean up mobile control listeners
@@ -530,6 +670,22 @@ public class AnimandMovement : MonoBehaviour
     public void SetRotateOnMove(bool newRotateMove)
     {
         _rotateOnMove = newRotateMove;
+    }
+
+    //Play a random footstep sound
+    private void PlayFootStepSound(bool isRunning)
+    {
+        if (footstepsAudioSource != null)
+        {
+            AudioClip[] stepSounds = isRunning ? runSounds : walkSounds;
+
+            if (stepSounds != null && stepSounds.Length > 0)
+            {
+                int randomIndex = Random.Range(0, stepSounds.Length);
+                footstepsAudioSource.clip = stepSounds[randomIndex];
+                footstepsAudioSource.Play();
+            }
+        }
     }
 
 #if UNITY_EDITOR

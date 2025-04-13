@@ -175,7 +175,12 @@ public class BubbleBullet : MonoBehaviour
 
     void PopBubble()
     {
-        PlaySound(popSound);
+        Debug.Log("PopBubble called");
+
+        if (popSound != null)
+        {
+            AudioSource.PlayClipAtPoint(popSound, transform.position, 0.7f);
+        }
 
         if (popEffect != null)
         {

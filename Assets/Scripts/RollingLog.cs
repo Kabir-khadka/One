@@ -7,6 +7,9 @@ public class RollingLog : ObstacleBase
     [SerializeField] private float moveSpeed = 2f; // Speed of Movement
     [SerializeField] private float knockbackForce = 35f; //Knockback power
 
+    [Header("Audio Settings")]
+    [SerializeField] private AudioSource rollAudioSource;
+
     private Vector3 startPos;
     private bool movingRight = true;
 
@@ -22,6 +25,12 @@ public class RollingLog : ObstacleBase
         //Move the log back and forth
         float moveStep = moveSpeed * Time.deltaTime;
         transform.position += (movingRight ? Vector3.right : Vector3.left) * moveStep;
+
+        //Play the rolling sound if its not already playing
+        if (rollAudioSource != null && !rollAudioSource.isPlaying)
+        {
+            rollAudioSource.Play();
+        }
 
         // Check if it should switch direction
         if(Vector3.Distance(transform.position, startPos) >= moveDistance - 0.01f)
