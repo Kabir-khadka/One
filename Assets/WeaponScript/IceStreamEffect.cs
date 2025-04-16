@@ -5,6 +5,7 @@ public class IceStreamEffect : MonoBehaviour
     public float freezeDuration = 3f; // Duration of freeze effect
     [SerializeField] private Collider iceCollider; // Assign manually in Inspector
     [SerializeField] private ParticleSystem iceParticles; // Assign Ice_Stream ParticleSystem manually
+    [SerializeField] private AudioSource iceAudioSource; // Assign in Inspector
 
     private void Start()
     {
@@ -23,10 +24,22 @@ public class IceStreamEffect : MonoBehaviour
         if (Input.GetButton("Fire1")) // If Fire1 is held (shooting Ice)
         {
             if (iceCollider != null) iceCollider.enabled = true;
+
+            // PLay sound if not already playing
+            if (iceAudioSource != null && !iceAudioSource.isPlaying)
+            {
+                iceAudioSource.Play();
+            }
         }
         else
         {
             if (iceCollider != null) iceCollider.enabled = false;
+
+            //Stop sound when not firing
+            if (iceAudioSource != null && iceAudioSource.isPlaying)
+            {
+                iceAudioSource.Stop();
+            }
         }
     }
 

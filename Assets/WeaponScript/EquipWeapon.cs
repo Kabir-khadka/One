@@ -168,6 +168,10 @@ public class EquipWeapon : MonoBehaviour
             rightHandIK.weight = 0.0f;
             leftHandIK.weight = 0.0f;
             isEquiped = false;
+
+            isAiming = false;
+            aimCam.SetActive(false);
+            playerAnimator.SetBool("IsAiming", false);
             currentWeapon.transform.parent = null;
             currentWeapon.transform.rotation = Quaternion.Euler(0.0f, 0.0f, 0.0f);
             currentWeapon.GetComponent<Rigidbody>().isKinematic = false;

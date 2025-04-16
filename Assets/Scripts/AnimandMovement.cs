@@ -65,6 +65,7 @@ public class AnimandMovement : MonoBehaviour
     private bool isJumpPressed;
     private float coyoteTimeCounter;
     private float jumpBufferCounter;
+    private bool isPlayerAiming = false;
 
     // Jump state variables
     private bool wasJumpPressed = false; // Track previous frame state
@@ -81,7 +82,7 @@ public class AnimandMovement : MonoBehaviour
     private Vector3 appliedMovement;
 
     //Add the flag to control rotation on movement
-    private bool _rotateOnMove = true;
+    private bool _rotateOnMove = false;
 
     private enum MovementState
     {
@@ -432,6 +433,11 @@ public class AnimandMovement : MonoBehaviour
         isMovementPressed = joystickInput.magnitude > 0.1f;  // Add small deadzone
     }
 
+    public void SetAimingState(bool isAiming)
+    {
+        isPlayerAiming = isAiming;
+    }
+
     private void HandleMovement()
     {
         if (useMobileControls)
@@ -447,10 +453,12 @@ public class AnimandMovement : MonoBehaviour
             Vector3 movementDirection = CalculateMovementDirection();
 
             // Calculate target speed based on joystick magnitude
-            float targetSpeed = Mathf.Lerp(walkSpeed, runSpeed, currentMovementInput.magnitude);
+            // IMPORTANT CHANGE: Force walk speed when aiming
+            float actualSpeed = isPlayerAiming ? walkSpeed : Mathf.Lerp(walkSpeed, runSpeed, currentMovementInput.magnitude);
+
 
             // Calculate target velocity
-            Vector3 targetVelocity = movementDirection * targetSpeed;
+            Vector3 targetVelocity = movementDirection * actualSpeed;
 
             // Smooth velocity change
             Vector3 currentHorizontalVelocity = new Vector3(rb.linearVelocity.x, 0, rb.linearVelocity.z);
@@ -466,7 +474,7 @@ public class AnimandMovement : MonoBehaviour
 
             // Update animations
             bool isWalking = currentMovementInput.magnitude > 0.1f;
-            bool isRunning = currentMovementInput.magnitude > 0.5f;
+            bool isRunning = !isPlayerAiming && currentMovementInput.magnitude > 0.5f;
 
             // Update animations
             animator.SetBool(isWalkingHash, isWalking);
@@ -554,6 +562,8 @@ public class AnimandMovement : MonoBehaviour
     }
 
     
+
+
 
     private void HandleGravity()
     {

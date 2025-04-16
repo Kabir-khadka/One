@@ -13,6 +13,11 @@ public class ThirdPersonShooterController : MonoBehaviour
     [SerializeField] private Transform spawnBulletPosition;           // Position where bullets will spawn from
     [SerializeField] private ParticleSystem iceParticleSystem;        // Particle system for ice weapon effects
 
+    [Header("Ice Gun Time")]
+    private float iceGunTimeUsed = 0f;
+    [SerializeField] private float iceGunMaxTime = 8f;
+    private bool iceGunExpired = false;
+
     // Camera target and constraints
     public GameObject CinemachineCameraTarget;                       
     public float TopClamp = 70.0f;                                  
@@ -20,7 +25,8 @@ public class ThirdPersonShooterController : MonoBehaviour
     public float CameraAngleOverride = 0.0f;                         
     public float Sensitivity = 1.0f;                                 
 
-    private EquipWeapon equipWeapon;                                  
+    private EquipWeapon equipWeapon;
+    private Weapon currentWeapon;
     public bool isAiming = false;                                    
 
     // Camera rotation variables
@@ -77,6 +83,13 @@ public class ThirdPersonShooterController : MonoBehaviour
     
     void Update()
     {
+
+        // Add this near the beginning of Update
+        if (isAiming && (equipWeapon == null || !equipWeapon.IsWeaponEquipped()))
+        {
+            ExitAimMode();
+        }
+
         // Cast a ray from screen center to determine where player is aiming in the world
         Vector2 screenCenterPoint = new Vector2(Screen.width / 2f, Screen.height / 2f);
         Ray ray = Camera.main.ScreenPointToRay(screenCenterPoint);
@@ -100,6 +113,7 @@ public class ThirdPersonShooterController : MonoBehaviour
         // Handle weapon firing when aiming and weapon is equipped
         if (isAiming && equipWeapon != null && equipWeapon.IsWeaponEquipped())
         {
+            currentWeapon = equipWeapon.currentWeapon;
             WeaponType currentWeaponType = equipWeapon.currentWeapon.WeaponType;
 
             // Handle Ice Gun - continuous particle effect while firing
@@ -118,9 +132,21 @@ public class ThirdPersonShooterController : MonoBehaviour
                     Vector3 aimDir = (mouseWorldPosition - spawnBulletPosition.position).normalized;
                     iceParticleSystem.transform.rotation = Quaternion.LookRotation(aimDir, Vector3.up);
                     if (!iceParticleSystem.isPlaying)
-                    {
                         iceParticleSystem.Play();
+
+                    // Count only when firing
+                    iceGunTimeUsed += Time.deltaTime;
+
+                    if (iceGunTimeUsed >= iceGunMaxTime)
+                    {
+                        iceGunExpired = true;
+                        iceParticleSystem.Stop();
+                        ExitAimMode(); // Call this before destroying the weapon.
+                        Destroy(currentWeapon.gameObject);
+                        equipWeapon.UnEquip();
+                        Debug.Log("Ice Gun destroyed after 8 seconds of use");
                     }
+                    
                 }
                 else if (Input.GetButtonUp("Fire1"))
                 {
@@ -128,53 +154,33 @@ public class ThirdPersonShooterController : MonoBehaviour
                     iceParticleSystem.Stop();
                 }
             }
-            // Handle Electric Gun - fires discrete projectiles with cooldown
-            else if (currentWeaponType == WeaponType.Electric_Gun)
+            // Limited-shot weapons like Bubble_Gun and Electric_Gun
+            else if (currentWeapon.UsesLimitedBullets())
             {
-                if (Input.GetButtonDown("Fire1") && Time.time >= nextFireTime)
-                {
-                    // Fire electric bullet if cooldown has elapsed
-                    nextFireTime = Time.time + fireRates[currentWeaponType];
-                    ShootElectricBullet();
-                }
-            }
-
-            // Handle Bubble_Gun - fires discrete projectiles with cooldown
-            else if (currentWeaponType == WeaponType.Bubble_Gun)
-            {
-                if (Input.GetButtonDown("Fire1") && Time.time >= nextFireTime)
-                {
-                    Weapon currentWeapon = equipWeapon.currentWeapon;
-
-                    // If Bubble_Gun has bullets left
-                    if (!currentWeapon.IsOutOfBullets())
-                    {
-                        nextFireTime = Time.time + fireRates[currentWeaponType];
-                        ShootBombBullet();
-
-                        // Decrease bullet count
-                        currentWeapon.DecreaseBullet();
-
-                        // If that was the last bullet, destroy the weapon
-                        if (currentWeapon.IsOutOfBullets())
-                        {
-                            Destroy(currentWeapon.gameObject); // Destrot the gun
-                            equipWeapon.UnEquip(); // Unequip logic from the EquipWeapon script
-                            Debug.Log("Bubble Gun destroyed after 3 shots");
-                        }
-                    }
-                    // Fire electric bullet if cooldown has elapsed
-                    nextFireTime = Time.time + fireRates[currentWeaponType];
-                    ShootBombBullet();
-                }
+                HandleLimitedShotWeapon(currentWeapon);
             }
         }
+
 
         // Update camera rotation based on mouse input
         CameraRotation();
     }
 
-    
+    //Method to exit out of aim mode when Weapon is destroyed.
+    private void ExitAimMode()
+    {
+        if (isAiming)
+        {
+            isAiming = false;
+            aimCam.Priority = 9;
+            thirdPersonCam.Priority = 11;
+            aimCam.gameObject.SetActive(false);
+            thirdPersonCam.gameObject.SetActive(true);
+            SetSensitivity(normalSensitivity);
+            animAndMovement.SetRotateOnMove(true);
+            animAndMovement.SetAimingState(false);
+        }
+    }
     public void ToggleAim()
     {
         if (equipWeapon != null && equipWeapon.IsWeaponEquipped())
@@ -189,7 +195,8 @@ public class ThirdPersonShooterController : MonoBehaviour
                 aimCam.gameObject.SetActive(true);
                 thirdPersonCam.gameObject.SetActive(false);
                 SetSensitivity(aimSensitivity);       // Reduce sensitivity for precision aiming
-                animAndMovement.SetRotateOnMove(false); // Prevent character rotation during aim mode
+                //animAndMovement.SetRotateOnMove(false); // Prevent character rotation during aim mode
+                animAndMovement.SetAimingState(true); // Add this line to force walk mode
             }
             else
             {
@@ -199,13 +206,53 @@ public class ThirdPersonShooterController : MonoBehaviour
                 aimCam.gameObject.SetActive(false);
                 thirdPersonCam.gameObject.SetActive(true);
                 SetSensitivity(normalSensitivity);    // Return to normal sensitivity
-                animAndMovement.SetRotateOnMove(true); // Allow character rotation during movement again
+                //animAndMovement.SetRotateOnMove(true); // Allow character rotation during movement again
+                animAndMovement.SetAimingState(false); // Add this line to allow running again
             }
         }
         else
         {
+            //Force exit aim mode if no weapon is equipped
+            ExitAimMode();
             // Can't aim without a weapon
             isAiming = false;
+        }
+    }
+
+    private void HandleLimitedShotWeapon(Weapon weapon)
+    {
+        WeaponType weaponType = weapon.WeaponType;
+
+        if(Input.GetButtonDown("Fire1") && Time.time >= nextFireTime)
+        {
+            if (!weapon.IsOutOfBullets())
+            {
+                nextFireTime = Time.time + fireRates[weaponType];
+
+                // Fire correct bullet type based on weapon
+                switch (weaponType)
+                {
+                    case WeaponType.Bubble_Gun:
+                        ShootBombBullet();
+                        break;
+                    case WeaponType.Electric_Gun:
+                        ShootElectricBullet();
+                        break;
+                    //Add more limited-shot weapons here if needed
+                }
+
+                // Decrease bullet count
+                weapon.DecreaseBullet();
+
+                // If bullets are finished, destroy and unequip
+                if (weapon.IsOutOfBullets())
+                {
+                    ExitAimMode(); //Call this before destroying the weapon.
+                    Destroy(weapon.gameObject);
+                    equipWeapon.UnEquip();
+                    Debug.Log($"{weaponType} destroyed after max shots.");
+                }
+            }
         }
     }
 

@@ -24,7 +24,7 @@ public class Weapon : MonoBehaviour
     //Check if the weapon uses limited bullets 
     public bool UsesLimitedBullets()
     {
-        return weaponType == WeaponType.Bubble_Gun;
+        return weaponType == WeaponType.Bubble_Gun || weaponType == WeaponType.Electric_Gun;
     }
 
     // Flag to determine if the weapon should rotate
