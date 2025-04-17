@@ -58,7 +58,7 @@ public class EquipWeapon : MonoBehaviour
 
     private void Update()
     {
-        if (Input.GetKeyDown(KeyCode.E)) Equip();
+        //if (Input.GetKeyDown(KeyCode.E)) Equip();
         if (Input.GetKeyDown(KeyCode.Q)) UnEquip();
         if (Input.GetButtonDown("Fire2") && currentWeapon != null)
         {
@@ -123,6 +123,41 @@ public class EquipWeapon : MonoBehaviour
             leftHandTarget.position = leftHandPos.position;
             leftHandTarget.rotation = leftHandPos.rotation;
         }
+    }
+
+    //This method handles collisions for weapon detection
+    private void OnTriggerEnter(Collider other)
+    {
+        // Only proceed if we dont already have a weapon
+        if (currentWeapon != null)
+            return;
+
+        //Check if the collided object is a weapon
+        Weapon weaponComponent = other.GetComponent<Weapon>();
+        if(weaponComponent != null)
+        {
+            // Use the weapon as our current weapon
+            currentWeapon = weaponComponent;
+            EquipCollectedWeapon(currentWeapon);
+        }
+    }
+
+    // New method to handle equipping a weapon we collide with
+    private void EquipCollectedWeapon(Weapon weapon)
+    {
+        if (!weapon) return;
+
+        weapon.isRotating = false;
+
+        weapon.isRotating = false;
+        weapon.ChangeBehaviour();
+        isEquiped = true;
+
+        if (!equipPositions.TryGetValue(weapon.WeaponType, out Transform equipPos)) return;
+
+        weapon.transform.SetParent(equipPos);
+        weapon.transform.position = equipPos.position;
+        weapon.transform.rotation = equipPos.rotation;
     }
 
     private void RaycastsHandler()
