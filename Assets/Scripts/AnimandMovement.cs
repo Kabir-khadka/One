@@ -57,6 +57,8 @@ public class AnimandMovement : MonoBehaviour
     private int isRunningHash;
     private int isJumpingHash;
     private int jumpCountHash;
+    public bool isRespawning = false;
+
 
     // Movement state variables
     private Vector2 currentMovementInput;
@@ -266,6 +268,7 @@ public class AnimandMovement : MonoBehaviour
 
     public void HandleJump()
     {
+        if (isRespawning) return;
         //Update landing sound cooldown
         if (landingSoundCooldown > 0)
         {
@@ -328,7 +331,7 @@ public class AnimandMovement : MonoBehaviour
             rb.linearVelocity = new Vector3(rb.linearVelocity.x, initialJumpVelocities[jumpCount], rb.linearVelocity.z);
 
             //PLay jump sound
-            if (jumpSound != null && jumpAudioSource != null)
+            if (!isRespawning && jumpSound != null && jumpAudioSource != null)
             {
                 jumpAudioSource.clip = jumpSound;
                 jumpAudioSource.Play();
@@ -407,6 +410,8 @@ public class AnimandMovement : MonoBehaviour
 
     private void onJump(InputAction.CallbackContext context)
     {
+        if (isRespawning) return;
+
         if (context.started) // Trigger only when the key is first pressed
         {
             isJumpPressed = true;
@@ -416,6 +421,8 @@ public class AnimandMovement : MonoBehaviour
     // Additional method for UI Button click (to be connected in OnClick)
     public void OnJumpButtonClicked()
     {
+        if (isRespawning) return;
+
         isJumpPressed = true;
     }
 
