@@ -139,6 +139,13 @@ public class BubbleBullet : MonoBehaviour
         attachLocalPosition = newParent.InverseTransformPoint(worldPosition);
         PlaySound(attachSound);
         StartCoroutine(AttachAnimation());
+
+        // ?? Check if the object is a target and trigger wall open
+        TargetTrigger targetTrigger = newParent.GetComponent<TargetTrigger>();
+        if (targetTrigger != null)
+        {
+            targetTrigger.TriggerWallOpen();
+        }
     }
 
     IEnumerator AttachAnimation()

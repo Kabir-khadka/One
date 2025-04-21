@@ -312,7 +312,7 @@ public class ThirdPersonShooterController : MonoBehaviour
             // Instantiate the bullet at the spawn position with correct rotation
             GameObject bullet = Instantiate(bombBulletPrefab, spawnBulletPosition.position, Quaternion.LookRotation(aimDir));
 
-            bullet.layer = 11; //Use exact layer number
+            bullet.layer = 10; //Use exact layer number
 
             // Optional: Add a small initial offset to prevent collision with the player
             bullet.transform.position += aimDir * 0.5f;
