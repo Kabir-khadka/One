@@ -50,7 +50,12 @@ public class AnimandMovement : MonoBehaviour
     [SerializeField] private GameObject mobileControlsCanvas;
     [SerializeField] private FloatingJoystick movementJoystick;  // Reference to your FloatingJoystick
     [SerializeField] private Button jumpButton;
-   
+
+    [Header("Strafing Settings")]
+    [SerializeField] private bool alwaysStrafe = true; // Enable strafing by default
+    private Vector3 moveDirection; // Store movement direction separate from facing direction
+    private Quaternion targetRotation; // Store desired rotation
+
 
     // Animator Hash IDs
     private int isWalkingHash;
@@ -93,6 +98,14 @@ public class AnimandMovement : MonoBehaviour
         Falling
     }
     private MovementState currentState;
+
+    // Modify the AnimandMovement.SetRotateOnMove method
+    public void SetRotateOnMove(bool newRotateMove)
+    {
+        _rotateOnMove = newRotateMove;
+        // If not rotating on move, we're effectively strafing
+        alwaysStrafe = !newRotateMove;
+    }
 
     public float GetMoveSpeed()
     {
@@ -166,7 +179,7 @@ public class AnimandMovement : MonoBehaviour
             }
 
             //Create new audio source for jump sounds if needed
-            if(jumpAudioSource == null)
+            if (jumpAudioSource == null)
             {
                 jumpAudioSource = gameObject.AddComponent<AudioSource>();
                 jumpAudioSource.playOnAwake = false;
@@ -256,7 +269,7 @@ public class AnimandMovement : MonoBehaviour
         float initialVelocity = (2 * maxJumpHeight) / timeToApex;
 
         //Set the same jump height/velocity for all jumps
-        for( int i = 1; i <= 3; i++)
+        for (int i = 1; i <= 3; i++)
         {
             initialJumpVelocities[i] = initialVelocity;
             jumpGravities[i] = gravity;
@@ -457,7 +470,8 @@ public class AnimandMovement : MonoBehaviour
 
         if (isMovementPressed)
         {
-            Vector3 movementDirection = CalculateMovementDirection();
+            // Calculate camera-relative movement direction
+            moveDirection = CalculateMovementDirection();
 
             // Calculate target speed based on joystick magnitude
             // IMPORTANT CHANGE: Force walk speed when aiming
@@ -465,7 +479,7 @@ public class AnimandMovement : MonoBehaviour
 
 
             // Calculate target velocity
-            Vector3 targetVelocity = movementDirection * actualSpeed;
+            Vector3 targetVelocity = moveDirection * actualSpeed;
 
             // Smooth velocity change
             Vector3 currentHorizontalVelocity = new Vector3(rb.linearVelocity.x, 0, rb.linearVelocity.z);
@@ -492,7 +506,7 @@ public class AnimandMovement : MonoBehaviour
             {
                 footstepTimer -= Time.deltaTime;
 
-                if(footstepTimer <= 0)
+                if (footstepTimer <= 0)
                 {
                     // Select appropriate step delay and sounds based on whether we're walking or running
                     float stepDelay = isRunning ? runStepSelay : walkStepDelay;
@@ -528,7 +542,7 @@ public class AnimandMovement : MonoBehaviour
         }
 
         //Disable check to make sure sounds stop when not moving
-        if(!isActuallyMoving && footstepsAudioSource != null && footstepsAudioSource.isPlaying)
+        if (!isActuallyMoving && footstepsAudioSource != null && footstepsAudioSource.isPlaying)
         {
             footstepsAudioSource.Stop();
         }
@@ -553,12 +567,13 @@ public class AnimandMovement : MonoBehaviour
 
     private void HandleRotation()
     {
-        if (_rotateOnMove && isMovementPressed)
+        // Only rotate the character if not in strafe mode or explicitly requested
+        if (!alwaysStrafe && _rotateOnMove && isMovementPressed)
         {
-            Vector3 movementDirection = CalculateMovementDirection();
-            if (movementDirection != Vector3.zero)
+            // Use moveDirection to determine facing direction when not strafing
+            if (moveDirection != Vector3.zero)
             {
-                Quaternion targetRotation = Quaternion.LookRotation(movementDirection);
+                Quaternion targetRotation = Quaternion.LookRotation(moveDirection);
                 transform.rotation = Quaternion.Slerp(
                     transform.rotation,
                     targetRotation,
@@ -568,7 +583,21 @@ public class AnimandMovement : MonoBehaviour
         }
     }
 
-    
+
+    // Add this method to manually set the character's facing direction
+    public void SetLookDirection(Vector3 direction)
+    {
+        if (direction != Vector3.zero)
+        {
+            targetRotation = Quaternion.LookRotation(direction);
+            transform.rotation = Quaternion.Slerp(
+                transform.rotation,
+                targetRotation,
+                rotationFactorPerFrame * Time.deltaTime
+            );
+        }
+    }
+
 
 
 
@@ -680,14 +709,9 @@ public class AnimandMovement : MonoBehaviour
         }
 
 
-        
+
     }
 
-    //Method to set whether rotation on move is allowed
-    public void SetRotateOnMove(bool newRotateMove)
-    {
-        _rotateOnMove = newRotateMove;
-    }
 
     //Play a random footstep sound
     private void PlayFootStepSound(bool isRunning)

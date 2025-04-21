@@ -9,6 +9,8 @@ TagManager:
   - CinemachineTarget
   - AimTarget
   - Water
+  - StartPlatform
+  - FinishPlatform
   layers:
   - Default
   - TransparentFX
@@ -20,8 +22,8 @@ TagManager:
   - Weapon
   - Destructable
   - Player
-  - 
-  - 
+  - Bullet
+  - Respawns
   - 
   - 
   - 

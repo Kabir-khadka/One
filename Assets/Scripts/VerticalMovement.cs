@@ -7,6 +7,7 @@ public class VerticalMovement : ObstacleBase
     [SerializeField] private float moveSpeed = 3f;
 
     private Vector3 targetPosition;
+    private bool isMoving = false; // Only move when player is on it
 
     private void Start()
     {
@@ -45,6 +46,7 @@ public class VerticalMovement : ObstacleBase
         if (collision.gameObject.CompareTag("Player"))
         {
             collision.transform.SetParent(transform); // Attach player to platform
+            isMoving = true;// Start moving when player steps on
         }
     }
 
@@ -53,6 +55,7 @@ public class VerticalMovement : ObstacleBase
         if (collision.gameObject.CompareTag("Player"))
         {
             collision.transform.SetParent(null); // Detach player from platform
+            isMoving = false; // Stop moving when player steps off
         }
     }
 }

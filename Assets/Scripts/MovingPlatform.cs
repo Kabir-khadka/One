@@ -9,6 +9,8 @@ public class MovingPlatform : ObstacleBase
 
     private Vector3 targetPosition;
 
+    private bool isMoving = false;// Only move when player is on it.
+
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
@@ -48,6 +50,7 @@ public class MovingPlatform : ObstacleBase
         if (collision.gameObject.CompareTag("Player"))
         {
             collision.transform.SetParent(transform); //Attach player to platform
+            isMoving = true; // Start moving when player steps on
         }
     }
 
@@ -56,6 +59,7 @@ public class MovingPlatform : ObstacleBase
         if (collision.gameObject.CompareTag("Player"))
         {
             collision.transform.SetParent(null); //Detach player from platform
+            isMoving = false; // Stop moving when player steps off
         }
     }
 }

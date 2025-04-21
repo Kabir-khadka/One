@@ -1,7 +1,7 @@
 using UnityEngine;
-using Cinemachine;           
-using UnityEngine.InputSystem; 
-using System.Collections.Generic; 
+using Cinemachine;
+using UnityEngine.InputSystem;
+using System.Collections.Generic;
 
 
 public class ThirdPersonShooterController : MonoBehaviour
@@ -19,45 +19,45 @@ public class ThirdPersonShooterController : MonoBehaviour
     private bool iceGunExpired = false;
 
     // Camera target and constraints
-    public GameObject CinemachineCameraTarget;                       
-    public float TopClamp = 70.0f;                                  
-    public float BottomClamp = -30.0f;                              
-    public float CameraAngleOverride = 0.0f;                         
-    public float Sensitivity = 1.0f;                                 
+    public GameObject CinemachineCameraTarget;
+    public float TopClamp = 70.0f;
+    public float BottomClamp = -30.0f;
+    public float CameraAngleOverride = 0.0f;
+    public float Sensitivity = 1.0f;
 
     private EquipWeapon equipWeapon;
     private Weapon currentWeapon;
-    public bool isAiming = false;                                    
+    public bool isAiming = false;
 
     // Camera rotation variables
-    private float _cinemachineTargetYaw;                              
-    private float _cinemachineTargetPitch;                            
+    private float _cinemachineTargetYaw;
+    private float _cinemachineTargetPitch;
 
-    private Vector3 mouseWorldPosition = Vector3.zero;                
+    private Vector3 mouseWorldPosition = Vector3.zero;
 
     // Sensitivity settings for different states
-    [SerializeField] private float normalSensitivity;                
-    [SerializeField] private float aimSensitivity;                   
+    [SerializeField] private float normalSensitivity;
+    [SerializeField] private float aimSensitivity;
 
-    private AnimandMovement animAndMovement;                          
-    private Transform aimTarget;                                     
+    private AnimandMovement animAndMovement;
+    private Transform aimTarget;
 
     // Weapon firing control
-    [SerializeField] private float nextFireTime = 0f;                 
+    [SerializeField] private float nextFireTime = 0f;
     [SerializeField] private GameObject electricBulletPrefab;
     [SerializeField] private GameObject bombBulletPrefab;
 
     // Dictionary mapping weapon types to their fire rates (cooldown between shots)
     private Dictionary<WeaponType, float> fireRates = new Dictionary<WeaponType, float>()
     {
-        { WeaponType.Pistol, 0.3f },                                  
-        { WeaponType.Rifle, 0.1f },                                   
-        { WeaponType.Ice_Gun, 0.07f },                                
-        { WeaponType.Bubble_Gun, 0.5f },                              
+        { WeaponType.Pistol, 0.3f },
+        { WeaponType.Rifle, 0.1f },
+        { WeaponType.Ice_Gun, 0.07f },
+        { WeaponType.Bubble_Gun, 0.5f },
         { WeaponType.Electric_Gun, 0.8f },                            // Electric gun can fire every 0.8 seconds
     };
 
-    
+
     private void Start()
     {
         // Get references to required components on the same GameObject
@@ -78,9 +78,12 @@ public class ThirdPersonShooterController : MonoBehaviour
             GameObject newAimTarget = new GameObject("AimTarget");
             aimTarget = newAimTarget.transform;
         }
+
+        // Tell the physics system to ignore collisions between bullets and respawn colliders
+        Physics.IgnoreLayerCollision(LayerMask.NameToLayer("Bullet"), LayerMask.NameToLayer("Respawns"));
     }
 
-    
+
     void Update()
     {
 
@@ -146,7 +149,7 @@ public class ThirdPersonShooterController : MonoBehaviour
                         equipWeapon.UnEquip();
                         Debug.Log("Ice Gun destroyed after 8 seconds of use");
                     }
-                    
+
                 }
                 else if (Input.GetButtonUp("Fire1"))
                 {
@@ -159,6 +162,24 @@ public class ThirdPersonShooterController : MonoBehaviour
             {
                 HandleLimitedShotWeapon(currentWeapon);
             }
+        }
+        // Handle character rotation based on camera when aiming
+        if (isAiming && animAndMovement != null)
+        {
+            // Make character face the same direction as the camera's forward
+            Vector3 cameraForward = Camera.main.transform.forward;
+            cameraForward.y = 0; // Keep character upright
+            cameraForward.Normalize();
+            animAndMovement.SetLookDirection(cameraForward);
+        }
+        else if (!isAiming && animAndMovement != null)
+        {
+            // When not aiming, still make character face camera direction when moving
+            // This creates a proper strafe movement feel in all states
+            Vector3 cameraForward = Camera.main.transform.forward;
+            cameraForward.y = 0;
+            cameraForward.Normalize();
+            animAndMovement.SetLookDirection(cameraForward);
         }
 
 
@@ -177,7 +198,7 @@ public class ThirdPersonShooterController : MonoBehaviour
             aimCam.gameObject.SetActive(false);
             thirdPersonCam.gameObject.SetActive(true);
             SetSensitivity(normalSensitivity);
-            animAndMovement.SetRotateOnMove(true);
+            animAndMovement.SetRotateOnMove(false); // Keep strafing always on
             animAndMovement.SetAimingState(false);
         }
     }
@@ -195,7 +216,7 @@ public class ThirdPersonShooterController : MonoBehaviour
                 aimCam.gameObject.SetActive(true);
                 thirdPersonCam.gameObject.SetActive(false);
                 SetSensitivity(aimSensitivity);       // Reduce sensitivity for precision aiming
-                //animAndMovement.SetRotateOnMove(false); // Prevent character rotation during aim mode
+                animAndMovement.SetRotateOnMove(false); // Prevent character rotation during aim mode
                 animAndMovement.SetAimingState(true); // Add this line to force walk mode
             }
             else
@@ -206,7 +227,7 @@ public class ThirdPersonShooterController : MonoBehaviour
                 aimCam.gameObject.SetActive(false);
                 thirdPersonCam.gameObject.SetActive(true);
                 SetSensitivity(normalSensitivity);    // Return to normal sensitivity
-                //animAndMovement.SetRotateOnMove(true); // Allow character rotation during movement again
+                animAndMovement.SetRotateOnMove(false); // Keep this false for strafing all the time
                 animAndMovement.SetAimingState(false); // Add this line to allow running again
             }
         }
@@ -223,7 +244,7 @@ public class ThirdPersonShooterController : MonoBehaviour
     {
         WeaponType weaponType = weapon.WeaponType;
 
-        if(Input.GetButtonDown("Fire1") && Time.time >= nextFireTime)
+        if (Input.GetButtonDown("Fire1") && Time.time >= nextFireTime)
         {
             if (!weapon.IsOutOfBullets())
             {
@@ -238,7 +259,7 @@ public class ThirdPersonShooterController : MonoBehaviour
                     case WeaponType.Electric_Gun:
                         ShootElectricBullet();
                         break;
-                    //Add more limited-shot weapons here if needed
+                        //Add more limited-shot weapons here if needed
                 }
 
                 // Decrease bullet count
@@ -267,6 +288,8 @@ public class ThirdPersonShooterController : MonoBehaviour
             // Instantiate the bullet at the spawn position with correct rotation
             GameObject bullet = Instantiate(electricBulletPrefab, spawnBulletPosition.position, Quaternion.LookRotation(aimDir));
 
+            bullet.layer = 10; // Replace with your actual Bullet layer number
+
             // Optional: Add a small initial offset to prevent collision with the player
             bullet.transform.position += aimDir * 0.5f;
 
@@ -281,13 +304,15 @@ public class ThirdPersonShooterController : MonoBehaviour
 
     public void ShootBombBullet()
     {
-        if(bombBulletPrefab != null && spawnBulletPosition != null)
+        if (bombBulletPrefab != null && spawnBulletPosition != null)
         {
             // Calculate the aim direction vector
             Vector3 aimDir = (mouseWorldPosition - spawnBulletPosition.position).normalized;
 
             // Instantiate the bullet at the spawn position with correct rotation
             GameObject bullet = Instantiate(bombBulletPrefab, spawnBulletPosition.position, Quaternion.LookRotation(aimDir));
+
+            bullet.layer = 11; //Use exact layer number
 
             // Optional: Add a small initial offset to prevent collision with the player
             bullet.transform.position += aimDir * 0.5f;
@@ -319,11 +344,11 @@ public class ThirdPersonShooterController : MonoBehaviour
         CinemachineCameraTarget.transform.rotation = Quaternion.Euler(
             _cinemachineTargetPitch + CameraAngleOverride, // Pitch (looking up/down)
             _cinemachineTargetYaw,                         // Yaw (looking left/right)
-            0.0f                                           
+            0.0f
         );
     }
 
-    
+
     public void SetSensitivity(float newSensitivity)
     {
         Sensitivity = newSensitivity;
