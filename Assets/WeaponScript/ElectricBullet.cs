@@ -2,11 +2,12 @@ using UnityEngine;
 
 public class ElectricBullet : MonoBehaviour
 {
-    [SerializeField] private float speed = 30f;  // Bullet speed
-    [SerializeField] private float lifetime = 5f; // Bullet lifetime before auto-destroy
-    [SerializeField] private float damage = 25f;  // Damage amount
-    [SerializeField] private float impactRadius = 1.5f; // Area damage radius
-    //[SerializeField] private GameObject electricImpactEffectPrefab; // Electric impact effect prefab
+    [SerializeField] private float speed = 30f;
+    [SerializeField] private float lifetime = 5f;
+    [SerializeField] private float damage = 25f;
+    [SerializeField] private float impactRadius = 1.5f;
+    public float freezeDuration = 6f;
+    [SerializeField] private float raycastDistance = 1f; // Adjust for bullet speed
 
     private Rigidbody rb;
     private Vector3 direction;
@@ -14,67 +15,70 @@ public class ElectricBullet : MonoBehaviour
 
     void Awake()
     {
-        // Get the Rigidbody component
         rb = GetComponent<Rigidbody>();
         electricSound = GetComponent<AudioSource>();
+
         if (rb == null)
-        {
             Debug.LogError("No Rigidbody attached to ElectricBullet.");
-        }
 
         if (electricSound == null)
-        {
-            Debug.LogWarning("No AudioSource found on ElectricBullet. Please attach one");
-        }
+            Debug.LogWarning("No AudioSource found on ElectricBullet.");
     }
 
     void Start()
     {
-        // Set the direction the bullet will travel
         direction = transform.forward;
-
-        // Destroy bullet after 'lifetime' seconds
         Destroy(gameObject, lifetime);
 
-        //Play the electric sound when the bullet is fired
         if (electricSound != null)
-        {
             electricSound.Play();
-        }
     }
 
     void Update()
     {
-        // Move the bullet manually using position update (for kinematic Rigidbody)
+        // Move bullet
         if (rb != null)
         {
             rb.MovePosition(transform.position + direction * speed * Time.deltaTime);
+        }
+
+        // Raycast forward for early detection
+        RaycastHit hit;
+        if (Physics.Raycast(transform.position, direction, out hit, raycastDistance))
+        {
+            ArtilleryFiring tankWeapon = hit.collider.GetComponent<ArtilleryFiring>();
+            if (tankWeapon != null)
+            {
+                tankWeapon.Freeze(freezeDuration);
+                Debug.Log("Hit tank weapon with raycast!");
+                HandleImpact();
+            }
         }
     }
 
     void OnCollisionEnter(Collision collision)
     {
-        // Apply damage to the object hit
-        ApplyDamage(collision.gameObject);
-
-        // Stop the sound before destroying (optional)
-        if (electricSound != null && electricSound.isPlaying)
+        ArtilleryFiring tankWeapon = collision.gameObject.GetComponent<ArtilleryFiring>();
+        if (tankWeapon != null)
         {
-            electricSound.Stop();
+            tankWeapon.Freeze(freezeDuration);
+            Debug.Log("Hit tank weapon with collision!");
         }
 
-       /* // Instantiate electric impact effect
-        if (electricImpactEffectPrefab != null)
-        {
-            Instantiate(electricImpactEffectPrefab, transform.position, Quaternion.identity);
-        }*/
+        ApplyDamage(collision.gameObject);
+        HandleImpact();
+    }
 
-        // Destroy bullet on impact
+    private void HandleImpact()
+    {
+        if (electricSound != null && electricSound.isPlaying)
+            electricSound.Stop();
+
         Destroy(gameObject);
     }
 
     private void ApplyDamage(GameObject target)
     {
-        // Here, no health system, so we leave it empty for now.
+        // Optional: Apply damage if health system exists
     }
 }

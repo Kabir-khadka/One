@@ -12,6 +12,14 @@ public class ArtilleryFiring : MonoBehaviour
     public bool autoFire = true;
     public string playerTag = "Player";
 
+    // New variables for freezing effect
+    private bool isFrozen = false;
+    private float frozenUntilTime = 0f;
+
+    // Optional variables for visual feedback
+    public GameObject electricalEffectPrefab; // Visual effect to show when frozen
+    private GameObject activeElectricalEffect;
+
     // Internal variables
     private float nextFireTime = 0f;
     private Transform targetPlayer;
@@ -28,6 +36,28 @@ public class ArtilleryFiring : MonoBehaviour
 
     void Update()
     {
+        // Check if we're still frozen
+        if (isFrozen)
+        {
+            if (Time.time >= frozenUntilTime)
+            {
+                // Unfreeze when time is up
+                isFrozen = false;
+
+                // Remove electrical effect if it exists
+                if (activeElectricalEffect != null)
+                {
+                    Destroy(activeElectricalEffect);
+                    activeElectricalEffect = null;
+                }
+            }
+            else
+            {
+                // Still frozen, don't allow firing
+                return;
+            }
+        }
+
         // Check if any players are in range
         if (autoFire && Time.time >= nextFireTime)
         {
@@ -44,6 +74,28 @@ public class ArtilleryFiring : MonoBehaviour
             FireBullet();
             nextFireTime = Time.time + (1f / fireRate);
         }
+    }
+
+    // Public method to freeze the tank weapon (called by ElectricBullet)
+    public void Freeze(float duration)
+    {
+        isFrozen = true;
+        frozenUntilTime = Time.time + duration;
+
+        // Optional: Show electrical effect while frozen
+        if (electricalEffectPrefab != null && activeElectricalEffect == null)
+        {
+            activeElectricalEffect = Instantiate(electricalEffectPrefab, transform.position, Quaternion.identity, transform);
+        }
+
+        // Optional: Play electrical sound
+        if (audioSource != null)
+        {
+            // You could play a different sound for getting electrocuted
+            // audioSource.PlayOneShot(electricalHitSound);
+        }
+
+        Debug.Log("Tank weapon frozen for " + duration + " seconds");
     }
 
     bool IsPlayerInRange()

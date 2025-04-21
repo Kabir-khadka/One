@@ -20,6 +20,7 @@ public class MovingPlatform : ObstacleBase
     // Update is called once per frame
     void Update()
     {
+        if(isMoving)
         MovePlatform();
     }
 
