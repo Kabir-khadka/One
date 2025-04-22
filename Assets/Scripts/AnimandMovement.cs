@@ -63,6 +63,7 @@ public class AnimandMovement : MonoBehaviour
     private int isJumpingHash;
     private int jumpCountHash;
     public bool isRespawning = false;
+    private bool isGroundedCached;
 
 
     // Movement state variables
@@ -289,7 +290,7 @@ public class AnimandMovement : MonoBehaviour
         }
 
         //Track if we were grounded in the previous frame
-        bool isGroundedNow = IsGrounded();
+        bool isGroundedNow = isGroundedCached;
 
         //Detect landing to play land sound
         if (!wasGrounded && isGroundedNow && landSound != null && landingSoundCooldown <= 0)
@@ -303,7 +304,7 @@ public class AnimandMovement : MonoBehaviour
 
 
         // Update coyote time
-        if (IsGrounded())
+        if (isGroundedCached)
         {
             coyoteTimeCounter = coyoteTime;
         }
@@ -365,7 +366,7 @@ public class AnimandMovement : MonoBehaviour
         }
 
         // Handle landing
-        if (IsGrounded() && rb.linearVelocity.y <= 0)
+        if (isGroundedCached && rb.linearVelocity.y <= 0)
         {
             if (isJumping)
             {
@@ -502,7 +503,7 @@ public class AnimandMovement : MonoBehaviour
             animator.SetBool(isRunningHash, isRunning);
 
             //Handle footstep sounds - only if actually moving on And on the ground
-            if (IsGrounded() && isActuallyMoving && footstepsAudioSource != null)
+            if (isGroundedCached && isActuallyMoving && footstepsAudioSource != null)
             {
                 footstepTimer -= Time.deltaTime;
 
@@ -611,12 +612,12 @@ public class AnimandMovement : MonoBehaviour
             float currentGravity = jumpGravities[Mathf.Min(jumpCount, 3)];
             rb.AddForce(Vector3.up * currentGravity, ForceMode.Acceleration);
         }
-        else if (isFalling && !IsGrounded())
+        else if (isFalling && !isGroundedCached)
         {
             // Apply increased gravity while falling
             rb.AddForce(Vector3.up * gravity * fallMultiplier, ForceMode.Acceleration);
         }
-        else if (IsGrounded())
+        else if (isGroundedCached)
         {
             // Apply small downward force when grounded
             rb.AddForce(Vector3.up * groundedGravity, ForceMode.Acceleration);
@@ -625,7 +626,7 @@ public class AnimandMovement : MonoBehaviour
 
     private void UpdateMovementState()
     {
-        if (IsGrounded())
+        if (isGroundedCached)
         {
             currentState = MovementState.Grounded;
         }
@@ -641,6 +642,8 @@ public class AnimandMovement : MonoBehaviour
 
     private void Update()
     {
+        isGroundedCached = IsGrounded();
+
         // Handle mobile input if enabled
         if (useMobileControls)
         {
